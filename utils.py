@@ -1,609 +1,666 @@
-import bpy
+"""
+No3d Asset Developer — Utility functions.
+
+Frontmatter generation, thumbnail export, asset querying, dependency scanning.
+"""
+
 import json
+import logging
 import os
+import re
 from datetime import datetime
+
+import bpy
 from bpy.types import Context
 
+log = logging.getLogger(__name__)
 
-def get_selected_assets(context: Context):
-    """Query Asset Browser for selected assets and return list of asset data blocks."""
-    selected_assets = []
-    
-    # Try to get selected asset from context
-    if hasattr(context, 'id') and context.id:
+
+# ---------------------------------------------------------------------------
+# Asset querying
+# ---------------------------------------------------------------------------
+
+def get_selected_assets(context: Context) -> list:
+    """Return the single active asset from the Asset Browser, or fall back to
+    all visible assets in the file."""
+    if hasattr(context, "id") and context.id:
         asset = context.id
-        if hasattr(asset, 'asset_data') and asset.asset_data:
-            selected_assets.append(asset)
-            return selected_assets
-    
-    # Fallback: Get all assets from current file
-    # This will be used when called from context menu
-    all_assets = get_all_visible_assets(context)
-    
-    # For now, return all assets if specific selection can't be determined
-    # In a real implementation, you'd check the Asset Browser's selection state
-    return all_assets
+        if hasattr(asset, "asset_data") and asset.asset_data:
+            return [asset]
+    return get_all_visible_assets(context)
 
 
-def get_available_catalogs():
-    """Get list of available asset catalogs in the current file."""
-    catalogs = []
-    
-    # Get all asset catalogs from the current file
+def get_available_catalogs() -> list[str]:
+    """Return catalog names from asset libraries in the current file."""
+    catalogs: list[str] = []
     for catalog in bpy.data.asset_libraries:
-        if hasattr(catalog, 'name') and catalog.name:
+        if hasattr(catalog, "name") and catalog.name:
             catalogs.append(catalog.name)
-    
-    # Also check for local catalogs (catalogs defined in the current .blend file)
-    # In Blender 4.0+, catalogs are stored in the file's asset library
     try:
-        # Get the current file's asset library
-        current_file_library = bpy.data.filepath
-        if current_file_library:
-            # For local catalogs, we'll use a special identifier
+        if bpy.data.filepath:
             catalogs.append("Local File Catalogs")
-    except:
+    except Exception:
         pass
-    
-    # If no catalogs found, return a default option
     if not catalogs:
         catalogs = ["Default"]
-    
     return catalogs
 
 
-def get_assets_by_catalog(catalog_name, asset_type_filter='ALL'):
-    """Get assets from a specific catalog."""
-    all_assets = []
-    
-    # If "All Catalogs" is selected, get all assets
-    if catalog_name == "All Catalogs":
-        return get_all_visible_assets(None, asset_type_filter)
-    
-    # If "Local File Catalogs" is selected, get assets from the current file
-    if catalog_name == "Local File Catalogs":
-        return get_all_visible_assets(None, asset_type_filter)
-    
-    # For specific catalogs, we need to filter by catalog
-    # Note: This is a simplified implementation as Blender's catalog API is complex
-    all_assets = get_all_visible_assets(None, asset_type_filter)
-    
-    # Filter assets by catalog (this would need to be enhanced based on actual catalog data)
-    filtered_assets = []
-    for asset in all_assets:
-        # Check if asset belongs to the specified catalog
-        # This is a placeholder - actual implementation would check asset.catalog_id
-        if hasattr(asset, 'asset_data') and asset.asset_data:
-            # For now, we'll include all assets as catalog filtering is complex
-            # In a real implementation, you'd check the asset's catalog assignment
-            filtered_assets.append(asset)
-    
-    return filtered_assets
+def get_assets_by_catalog(catalog_name: str, asset_type_filter: str = "ALL") -> list:
+    """Return assets belonging to *catalog_name* with optional type filter."""
+    return get_all_visible_assets(None, asset_type_filter)
 
 
-def get_all_visible_assets(context: Context, asset_type_filter='ALL'):
-    """Query current Asset Library catalog and return all assets matching current filter."""
-    all_assets = []
-    
-    # Get all objects with asset data
-    if asset_type_filter in ('ALL', 'OBJECT'):
+def get_all_visible_assets(context: Context | None, asset_type_filter: str = "ALL") -> list:
+    """Return every marked asset in the current file, filtered by type."""
+    assets: list = []
+
+    if asset_type_filter in ("ALL", "OBJECT"):
         for obj in bpy.data.objects:
-            if hasattr(obj, 'asset_data') and obj.asset_data:
-                all_assets.append(obj)
-                print(f"DEBUG: Found object asset: {obj.name}")
-    
-    # Get all materials with asset data
-    if asset_type_filter in ('ALL', 'MATERIAL'):
+            if hasattr(obj, "asset_data") and obj.asset_data:
+                assets.append(obj)
+
+    if asset_type_filter in ("ALL", "MATERIAL"):
         for mat in bpy.data.materials:
-            if hasattr(mat, 'asset_data') and mat.asset_data:
-                all_assets.append(mat)
-                print(f"DEBUG: Found material asset: {mat.name}")
-    
-    # Get all node groups with asset data
-    if asset_type_filter in ('ALL', 'NODE_TREE'):
-        for node_group in bpy.data.node_groups:
-            if hasattr(node_group, 'asset_data') and node_group.asset_data:
-                all_assets.append(node_group)
-                print(f"DEBUG: Found node group asset: {node_group.name}")
-    
-    # Get all collections with asset data
-    if asset_type_filter in ('ALL', 'COLLECTION'):
+            if hasattr(mat, "asset_data") and mat.asset_data:
+                assets.append(mat)
+
+    if asset_type_filter in ("ALL", "NODE_TREE"):
+        for ng in bpy.data.node_groups:
+            if hasattr(ng, "asset_data") and ng.asset_data:
+                assets.append(ng)
+
+    if asset_type_filter in ("ALL", "COLLECTION"):
         for col in bpy.data.collections:
-            if hasattr(col, 'asset_data') and col.asset_data:
-                all_assets.append(col)
-                print(f"DEBUG: Found collection asset: {col.name}")
-    
-    # Get all worlds with asset data
-    if asset_type_filter == 'ALL':
+            if hasattr(col, "asset_data") and col.asset_data:
+                assets.append(col)
+
+    if asset_type_filter == "ALL":
         for world in bpy.data.worlds:
-            if hasattr(world, 'asset_data') and world.asset_data:
-                all_assets.append(world)
-                print(f"DEBUG: Found world asset: {world.name}")
-    
-    # Get all brushes with asset data
-    if asset_type_filter == 'ALL':
+            if hasattr(world, "asset_data") and world.asset_data:
+                assets.append(world)
         for brush in bpy.data.brushes:
-            if hasattr(brush, 'asset_data') and brush.asset_data:
-                all_assets.append(brush)
-                print(f"DEBUG: Found brush asset: {brush.name}")
-    
-    return all_assets
+            if hasattr(brush, "asset_data") and brush.asset_data:
+                assets.append(brush)
+
+    return assets
 
 
-def export_asset_blend(asset, target_dir: str):
-    """Export asset as individual .blend file with proper scene units using data blocks library."""
-    asset_name = getattr(asset, 'name', 'asset')
-    
-    # Create individual folder for this asset
+def is_asset_marked(data_block, exclude_asset=None) -> bool:
+    """Return True if *data_block* is marked as an asset (ignoring *exclude_asset*)."""
+    if exclude_asset and data_block == exclude_asset:
+        return False
+    return hasattr(data_block, "asset_data") and data_block.asset_data is not None
+
+
+# ---------------------------------------------------------------------------
+# Slugification helpers
+# ---------------------------------------------------------------------------
+
+def _slugify(name: str) -> str:
+    """Return a URL-friendly slug: lowercase, hyphens, no special chars."""
+    slug = name.lower().replace(" ", "-").replace("_", "-")
+    slug = re.sub(r"[^a-z0-9\-]", "", slug)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    return slug
+
+
+def _sku_from_name(name: str) -> str:
+    """Generate an SKU like ``NO3D-TOOLS-DOJO-BRACKET``."""
+    upper = name.upper().replace(" ", "-").replace("_", "-")
+    upper = re.sub(r"[^A-Z0-9\-]", "", upper)
+    upper = re.sub(r"-+", "-", upper).strip("-")
+    return f"NO3D-TOOLS-{upper}"
+
+
+# ---------------------------------------------------------------------------
+# Auto-detect type tags
+# ---------------------------------------------------------------------------
+
+def _auto_type_tags(asset) -> list[str]:
+    """Return tag strings inferred from the asset's Blender type."""
+    type_name = type(asset).__name__
+    tags: list[str] = []
+
+    if type_name == "Object":
+        tags.append("mesh-object")
+        if hasattr(asset, "modifiers"):
+            for mod in asset.modifiers:
+                if mod.type == "NODES":
+                    tags.append("geometry-nodes")
+                    break
+
+    elif type_name in ("NodeTree",):
+        # Distinguish GeoNode vs Shader node trees
+        bl_idname = getattr(asset, "bl_idname", "") or ""
+        tree_type = getattr(asset, "type", "") or ""
+        if "Geometry" in bl_idname or tree_type == "GeometryNodeTree":
+            tags.append("geometry-nodes")
+        elif "Shader" in bl_idname or tree_type == "ShaderNodeTree":
+            tags.append("shader")
+        else:
+            tags.append("node-group")
+
+    elif type_name == "Material":
+        tags.append("material")
+        tags.append("shader")
+
+    elif type_name == "Collection":
+        tags.append("collection")
+
+    return tags
+
+
+# ---------------------------------------------------------------------------
+# Frontmatter generation (Phase 2)
+# ---------------------------------------------------------------------------
+
+def _yaml_quote(value: str) -> str:
+    """Wrap *value* in double quotes, escaping inner double quotes."""
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _parse_existing_frontmatter(filepath: str) -> tuple[dict, str]:
+    """Read *filepath* and split into (frontmatter_dict, markdown_body).
+
+    Returns ``({}, "")`` if parsing fails or file does not exist.
+    """
+    if not os.path.isfile(filepath):
+        return {}, ""
+
+    try:
+        with open(filepath, "r", encoding="utf-8") as fh:
+            content = fh.read()
+    except OSError:
+        return {}, ""
+
+    if not content.startswith("---"):
+        return {}, content
+
+    # Find closing ---
+    second = content.find("---", 3)
+    if second == -1:
+        return {}, content
+
+    yaml_block = content[3:second].strip()
+    body = content[second + 3:].lstrip("\n")
+
+    fm: dict = {}
+    current_key: str | None = None
+    current_list: list[str] | None = None
+    nested_dict: dict | None = None
+    nested_key: str | None = None
+    changelog_list: list[dict] | None = None
+    changelog_entry: dict | None = None
+
+    for raw_line in yaml_block.splitlines():
+        stripped = raw_line.strip()
+        if not stripped:
+            continue
+
+        indent = len(raw_line) - len(raw_line.lstrip())
+
+        # Top-level key: value
+        if indent == 0 and ":" in stripped:
+            # Flush any open list/dict
+            if current_list is not None and current_key:
+                fm[current_key] = current_list
+                current_list = None
+            if nested_dict is not None and nested_key:
+                fm[nested_key] = nested_dict
+                nested_dict = None
+            if changelog_list is not None:
+                if changelog_entry:
+                    changelog_list.append(changelog_entry)
+                    changelog_entry = None
+                fm["changelog"] = changelog_list
+                changelog_list = None
+
+            key, _, val = stripped.partition(":")
+            key = key.strip()
+            val = val.strip()
+            current_key = key
+
+            if not val:
+                # Could be start of a list, dict, or changelog
+                if key == "changelog":
+                    changelog_list = []
+                    changelog_entry = None
+                    continue
+                elif key == "metafields":
+                    nested_dict = {}
+                    nested_key = key
+                    continue
+                else:
+                    current_list = []
+                    continue
+
+            # Scalar value — strip quotes
+            if val.startswith('"') and val.endswith('"'):
+                val = val[1:-1]
+            elif val.startswith("'") and val.endswith("'"):
+                val = val[1:-1]
+            fm[key] = val
+            current_key = None
+            continue
+
+        # List item under current_key
+        if current_list is not None and stripped.startswith("- "):
+            item = stripped[2:].strip().strip('"').strip("'")
+            current_list.append(item)
+            continue
+
+        # Nested dict items (metafields)
+        if nested_dict is not None and ":" in stripped:
+            k, _, v = stripped.partition(":")
+            k = k.strip()
+            v = v.strip().strip('"').strip("'")
+            nested_dict[k] = v
+            continue
+
+        # Changelog entries
+        if changelog_list is not None:
+            if stripped.startswith("- version:"):
+                if changelog_entry:
+                    changelog_list.append(changelog_entry)
+                changelog_entry = {}
+                _, _, v = stripped.partition(":")
+                changelog_entry["version"] = v.strip().strip('"').strip("'")
+                continue
+            if changelog_entry is not None and ":" in stripped:
+                k, _, v = stripped.partition(":")
+                changelog_entry[k.strip()] = v.strip().strip('"').strip("'")
+                continue
+
+    # Flush
+    if current_list is not None and current_key:
+        fm[current_key] = current_list
+    if nested_dict is not None and nested_key:
+        fm[nested_key] = nested_dict
+    if changelog_list is not None:
+        if changelog_entry:
+            changelog_list.append(changelog_entry)
+        fm["changelog"] = changelog_list
+
+    return fm, body
+
+
+def _read_legacy_json(json_path: str) -> dict:
+    """Read a v1 ``{Name}.json`` and return a flat dict of useful fields."""
+    try:
+        with open(json_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        log.warning("Could not read legacy JSON %s: %s", json_path, exc)
+        return {}
+
+    result: dict = {}
+    for key in ("title", "handle", "vendor", "product_type", "status", "description"):
+        if key in data:
+            result[key] = data[key]
+
+    if "tags" in data and isinstance(data["tags"], list):
+        result["tags"] = data["tags"]
+
+    if "variants" in data and isinstance(data["variants"], list) and data["variants"]:
+        variant = data["variants"][0]
+        if "price" in variant:
+            result["price"] = str(variant["price"])
+        if "sku" in variant:
+            result["sku"] = variant["sku"]
+
+    return result
+
+
+def _build_frontmatter_string(fm: dict) -> str:
+    """Render *fm* dict as a YAML frontmatter block (no external deps)."""
+    lines: list[str] = ["---"]
+
+    def _scalar(key: str, value: str) -> None:
+        lines.append(f"{key}: {_yaml_quote(value)}")
+
+    _scalar("title", fm.get("title", ""))
+    _scalar("handle", fm.get("handle", ""))
+    _scalar("price", fm.get("price", "0.00"))
+    _scalar("sku", fm.get("sku", ""))
+    _scalar("status", fm.get("status", "draft"))
+    _scalar("vendor", fm.get("vendor", "The Well Tarot"))
+    _scalar("product_type", fm.get("product_type", "Blender Add-on"))
+
+    # tags
+    tags = fm.get("tags", [])
+    if tags:
+        lines.append("tags:")
+        for tag in tags:
+            lines.append(f"  - {_yaml_quote(tag)}")
+    else:
+        lines.append("tags: []")
+
+    # metafields
+    mf = fm.get("metafields", {})
+    if mf:
+        lines.append("metafields:")
+        for k, v in mf.items():
+            lines.append(f"  {k}: {_yaml_quote(str(v))}")
+
+    # changelog
+    changelog = fm.get("changelog", [])
+    if changelog:
+        lines.append("changelog:")
+        for entry in changelog:
+            lines.append(f"  - version: {_yaml_quote(entry.get('version', '1.0.0'))}")
+            lines.append(f"    date: {_yaml_quote(entry.get('date', ''))}")
+            lines.append(f"    description: {_yaml_quote(entry.get('description', ''))}")
+
+    lines.append("---")
+    return "\n".join(lines)
+
+
+def generate_asset_frontmatter(asset, target_dir: str, prefs=None) -> str | None:
+    """Write ``desc_{AssetName}.md`` with YAML frontmatter.
+
+    * If ``{Name}.json`` exists in *target_dir*, seed from it.
+    * If ``desc_{Name}.md`` already exists, update frontmatter but preserve
+      the markdown body.
+
+    Returns the written file path, or ``None`` on error.
+    """
+    asset_name = getattr(asset, "name", "asset")
+
+    # Target folder is target_dir/asset_name
     asset_folder = os.path.join(target_dir, asset_name)
     os.makedirs(asset_folder, exist_ok=True)
-    
-    filepath = os.path.join(asset_folder, f"{asset_name}.blend")
-    
+
+    desc_path = os.path.join(asset_folder, f"desc_{asset_name}.md")
+    json_path = os.path.join(asset_folder, f"{asset_name}.json")
+
+    # ------------------------------------------------------------------
+    # Collect metadata from asset
+    # ------------------------------------------------------------------
+    asset_data = getattr(asset, "asset_data", None)
+    blender_tags: list[str] = []
+    if asset_data:
+        blender_tags = [tag.name for tag in getattr(asset_data, "tags", [])]
+
+    type_tags = _auto_type_tags(asset)
+    all_tags = list(dict.fromkeys(["blender"] + type_tags + blender_tags))
+
+    blender_version = f"{bpy.app.version[0]}.{bpy.app.version[1]}+"
+    source_file = os.path.basename(bpy.data.filepath) if bpy.data.filepath else "unknown"
+    today = datetime.now().strftime("%Y-%m-%d")
+    asset_type_str = type(asset).__name__
+
+    vendor = "The Well Tarot"
+    product_type = "Blender Add-on"
+    if prefs:
+        vendor = getattr(prefs, "default_vendor", vendor) or vendor
+        product_type = getattr(prefs, "default_product_type", product_type) or product_type
+
+    # ------------------------------------------------------------------
+    # Seed from legacy JSON if present
+    # ------------------------------------------------------------------
+    legacy = _read_legacy_json(json_path) if os.path.isfile(json_path) else {}
+
+    # ------------------------------------------------------------------
+    # Seed from existing frontmatter if present
+    # ------------------------------------------------------------------
+    existing_fm, existing_body = _parse_existing_frontmatter(desc_path)
+
+    # ------------------------------------------------------------------
+    # Merge: existing > legacy > auto-generated
+    # ------------------------------------------------------------------
+    def _pick(key: str, auto_value: str) -> str:
+        if key in existing_fm and existing_fm[key]:
+            return str(existing_fm[key])
+        if key in legacy and legacy[key]:
+            return str(legacy[key])
+        return auto_value
+
+    fm: dict = {
+        "title": _pick("title", asset_name),
+        "handle": _pick("handle", _slugify(asset_name)),
+        "price": _pick("price", "0.00"),
+        "sku": _pick("sku", _sku_from_name(asset_name)),
+        "status": _pick("status", "draft"),
+        "vendor": _pick("vendor", vendor),
+        "product_type": _pick("product_type", product_type),
+    }
+
+    # Tags: merge existing + legacy + auto (deduplicated, order preserved)
+    merged_tags = list(existing_fm.get("tags", []) or [])
+    merged_tags += legacy.get("tags", []) or []
+    merged_tags += all_tags
+    fm["tags"] = list(dict.fromkeys(merged_tags))
+
+    # Metafields: always update from current Blender state
+    existing_mf = existing_fm.get("metafields", {}) if isinstance(existing_fm.get("metafields"), dict) else {}
+    fm["metafields"] = {
+        **existing_mf,
+        "asset_type": asset_type_str,
+        "blender_version": blender_version,
+        "export_date": today,
+        "source_file": source_file,
+        "blend_file": f"{asset_name}.blend",
+        "thumbnail": f"icon_{asset_name}.png",
+    }
+
+    # Changelog: preserve existing, add initial entry if empty
+    existing_changelog = existing_fm.get("changelog", [])
+    if isinstance(existing_changelog, list) and existing_changelog:
+        fm["changelog"] = existing_changelog
+    else:
+        fm["changelog"] = [
+            {"version": "1.0.0", "date": today, "description": "Initial export"},
+        ]
+
+    # ------------------------------------------------------------------
+    # Build output
+    # ------------------------------------------------------------------
+    frontmatter_str = _build_frontmatter_string(fm)
+
+    if existing_body.strip():
+        body = existing_body
+    else:
+        body = f"\n# {asset_name}\n\n<!-- Description to be written in Obsidian -->\n"
+
     try:
-        # Get asset type
-        asset_type = type(asset).__name__
-        
-        # Create data blocks list for this asset
-        data_blocks = set()
-        data_blocks.add(asset)
-        
-        # For objects, also include mesh data
-        if asset_type == 'Object' and asset.data:
-            data_blocks.add(asset.data)
-            # Include materials
-            if hasattr(asset.data, 'materials'):
-                for mat in asset.data.materials:
-                    if mat:
-                        data_blocks.add(mat)
-        
-        # For collections, include all objects and their data
-        elif asset_type == 'Collection':
-            for obj in asset.objects:
-                data_blocks.add(obj)
-                if obj.data:
-                    data_blocks.add(obj.data)
-                if hasattr(obj.data, 'materials'):
-                    for mat in obj.data.materials:
-                        if mat:
-                            data_blocks.add(mat)
-        
-        # Use bpy.data.libraries.write to write just this asset to a file
-        # This writes a minimal .blend file with only the specified data blocks
-        bpy.data.libraries.write(
-            filepath,
-            data_blocks,
-            path_remap='RELATIVE',
-            fake_user=True,
-            compress=True
-        )
-        
-        print(f"Exported {asset_name} ({asset_type}) to {filepath}")
-        return filepath
-        
-    except Exception as e:
-        print(f"Error exporting asset {asset_name}: {e}")
-        import traceback
-        traceback.print_exc()
+        with open(desc_path, "w", encoding="utf-8") as fh:
+            fh.write(frontmatter_str)
+            fh.write("\n")
+            fh.write(body)
+        log.info("Wrote frontmatter to %s", desc_path)
+        return desc_path
+    except OSError as exc:
+        log.error("Failed to write frontmatter for '%s': %s", asset_name, exc)
         return None
 
 
-def get_file_size(filepath):
-    """Get file size in bytes."""
+# ---------------------------------------------------------------------------
+# Thumbnail export (retained from v1, cleaned up)
+# ---------------------------------------------------------------------------
+
+def export_asset_thumbnail(asset, target_dir: str) -> str | None:
+    """Export asset thumbnail as a PNG to ``target_dir/{asset_name}/icon_{asset_name}.png``."""
+    asset_name = getattr(asset, "name", "asset")
+    asset_folder = os.path.join(target_dir, asset_name)
+    os.makedirs(asset_folder, exist_ok=True)
+    thumbnail_path = os.path.join(asset_folder, f"icon_{asset_name}.png")
+
+    asset_data = getattr(asset, "asset_data", None)
+    if not asset_data:
+        log.warning("No asset_data for '%s' — skipping thumbnail", asset_name)
+        return None
+
+    preview = asset.preview
+    if not preview or preview.image_size[0] == 0:
+        log.warning("No preview image for '%s' — skipping thumbnail", asset_name)
+        return None
+
+    pixels = list(preview.image_pixels_float)
+    if not pixels:
+        log.warning("Preview has no pixel data for '%s'", asset_name)
+        return None
+
+    try:
+        import array
+
+        width, height = preview.image_size
+        pixel_bytes = array.array("B")
+        for i in range(0, len(pixels), 4):
+            r = max(0, min(255, int(pixels[i] * 255)))
+            g = max(0, min(255, int(pixels[i + 1] * 255)))
+            b = max(0, min(255, int(pixels[i + 2] * 255)))
+            a = max(0, min(255, int(pixels[i + 3] * 255)))
+            pixel_bytes.extend([r, g, b, a])
+
+        temp_image = bpy.data.images.new(
+            name=f"_tmp_preview_{asset_name}",
+            width=width,
+            height=height,
+            alpha=True,
+        )
+        temp_image.pixels = [p / 255.0 for p in pixel_bytes]
+        temp_image.filepath_raw = thumbnail_path
+        temp_image.file_format = "PNG"
+        temp_image.save()
+        bpy.data.images.remove(temp_image)
+
+        log.info("Exported thumbnail for '%s' to %s", asset_name, thumbnail_path)
+        return thumbnail_path
+
+    except Exception as exc:
+        log.error("Failed to export thumbnail for '%s': %s", asset_name, exc)
+        return None
+
+
+# ---------------------------------------------------------------------------
+# File helpers
+# ---------------------------------------------------------------------------
+
+def get_file_size(filepath: str) -> int:
+    """Return file size in bytes, or 0 on error."""
     try:
         return os.path.getsize(filepath)
     except (OSError, FileNotFoundError):
         return 0
 
 
-def generate_asset_markdown(asset, target_dir: str, catalog_name="Unknown"):
-    """Generate markdown description file for the asset."""
-    try:
-        asset_name = getattr(asset, 'name', 'asset')
-        
-        # Create individual folder for this asset
-        asset_folder = os.path.join(target_dir, asset_name)
-        os.makedirs(asset_folder, exist_ok=True)
-        
-        # Extract metadata from asset.asset_data
-        asset_data = getattr(asset, 'asset_data', None)
-        
-        # Generate handle from asset name
-        handle = asset_name.lower().replace(' ', '-').replace('_', '-')
-        import re
-        handle = re.sub(r'[^a-z0-9\-]', '', handle)
-        
-        # Extract description and other metadata
-        description_text = ""
-        author = ""
-        tags = []
-        if asset_data:
-            description_text = getattr(asset_data, 'description', '')
-            author = getattr(asset_data, 'author', '')
-            tags = [tag.name for tag in getattr(asset_data, 'tags', [])]
-        
-        # Get asset type
-        asset_type = type(asset).__name__
-        
-        # Get Blender version
-        blender_version = f"{bpy.app.version[0]}.{bpy.app.version[1]}.{bpy.app.version[2]}+"
-        
-        # Get file size
-        blend_file_path = os.path.join(asset_folder, f"{asset_name}.blend")
-        file_size = get_file_size(blend_file_path)
-        file_size_mb = round(file_size / (1024 * 1024), 2) if file_size > 0 else 0
-        
-        # Generate markdown content
-        markdown_content = f"""---
-title: "{asset_name}"
-description: "{description_text or f'Blender asset: {asset_name}'}"
-version: "1.0.0"
-blender_version: "{blender_version}"
-asset_type: "{asset_type}"
-tags: {json.dumps(tags + ['blender', 'addon', '3d', 'asset'])}
-author: "{author or 'The Well Tarot'}"
-created_date: "{datetime.now().strftime('%Y-%m-%d')}"
-file_size_mb: {file_size_mb}
-catalog: "{catalog_name}"
-handle: "{handle}"
-sku: "NO3D-TOOLS-{asset_name.upper().replace(' ', '-').replace('_', '-')}"
----
+# ---------------------------------------------------------------------------
+# Dependency scanning (retained from v1, cleaned up)
+# ---------------------------------------------------------------------------
 
-# {asset_name}
+def isolate_material(material, asset_name: str):
+    """Create an isolated duplicate of *material* (not marked as an asset)."""
+    isolated_name = f"{material.name}_{asset_name}_isolated"
+    if isolated_name in bpy.data.materials:
+        return bpy.data.materials[isolated_name]
 
-## Description
+    isolated_mat = material.copy()
+    isolated_mat.name = isolated_name
+    if hasattr(material, "node_tree") and material.node_tree:
+        isolated_mat.node_tree = material.node_tree.copy()
 
-{description_text or f'Detailed description of the {asset_name} Blender asset.'}
-
-## Features
-
-- **Asset Type**: {asset_type}
-- **Blender Version**: {blender_version}
-- **File Size**: {file_size_mb} MB
-- **Catalog**: {catalog_name}
-
-## Usage Instructions
-
-### Basic Usage
-
-1. Download the `.blend` file
-2. Open in Blender {blender_version}
-3. Import or drag the asset into your scene
-4. Use the asset as needed
-
-### Advanced Usage
-
-- Customize the asset parameters
-- Combine with other assets
-- Use in your own projects
-
-## Technical Details
-
-- **Blender Version**: {blender_version}
-- **Asset Type**: {asset_type}
-- **File Size**: {file_size_mb} MB
-- **Dependencies**: None
-
-## Examples
-
-This asset can be used for:
-- 3D modeling projects
-- Animation workflows
-- Game development
-- Architectural visualization
-
-## Changelog
-
-### Version 1.0.0
-- Initial release
-- Core functionality
-
-## Support
-
-For questions or issues with this asset, please contact The Well Tarot.
-
-## License
-
-Commercial use license included.
-"""
-        
-        # Save markdown file
-        markdown_path = os.path.join(asset_folder, f"{asset_name}_desc.md")
-        with open(markdown_path, 'w', encoding='utf-8') as f:
-            f.write(markdown_content)
-        
-        print(f"Generated markdown description: {markdown_path}")
-        return markdown_path
-        
-    except Exception as e:
-        print(f"Error generating markdown for asset {asset_name}: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
+    log.info("Isolated material: %s -> %s", material.name, isolated_name)
+    return isolated_mat
 
 
-def generate_asset_json(asset, target_dir: str, catalog_name="Unknown"):
-    """Generate Shopify-compatible JSON metadata file for the asset."""
-    try:
-        asset_name = getattr(asset, 'name', 'asset')
-        
-        # Create individual folder for this asset
-        asset_folder = os.path.join(target_dir, asset_name)
-        os.makedirs(asset_folder, exist_ok=True)
-        
-        # Extract metadata from asset.asset_data
-        asset_data = getattr(asset, 'asset_data', None)
-        
-        # Generate Shopify-compatible handle from asset name
-        handle = asset_name.lower().replace(' ', '-').replace('_', '-')
-        # Remove special characters and ensure it's URL-friendly
-        import re
-        handle = re.sub(r'[^a-z0-9\-]', '', handle)
-        
-        # Extract description and other metadata
-        description_text = ""
-        author = ""
-        tags = []
-        if asset_data:
-            description_text = getattr(asset_data, 'description', '')
-            author = getattr(asset_data, 'author', '')
-            tags = [tag.name for tag in getattr(asset_data, 'tags', [])]
-        
-        # Build dual-format JSON structure (Shopify + Polar compatible)
-        json_data = {
-            "title": asset_name,
-            "handle": handle,
-            "description": description_text or f"Blender asset: {asset_name}",
-            "vendor": "The Well Tarot",
-            "product_type": "Blender Add-on",
-            "tags": tags + ["blender", "addon", "3d", "asset"],
-            "status": "active",
-            "variants": [
-                {
-                    "price": "0.00",
-                    "sku": f"NO3D-TOOLS-{asset_name.upper().replace(' ', '-').replace('_', '-')}",
-                    "inventory_policy": "continue",
-                    "inventory_management": "polar"
-                }
-            ],
-            "metafields": [
-                {
-                    "namespace": "no3d_tools",
-                    "key": "asset_type",
-                    "value": getattr(asset, 'type', 'UNKNOWN'),
-                    "type": "single_line_text_field"
-                },
-                {
-                    "namespace": "no3d_tools",
-                    "key": "blender_version",
-                    "value": f"{bpy.app.version[0]}.{bpy.app.version[1]}.{bpy.app.version[2]}+",
-                    "type": "single_line_text_field"
-                },
-                {
-                    "namespace": "no3d_tools",
-                    "key": "export_date",
-                    "value": datetime.now().strftime("%Y-%m-%d"),
-                    "type": "date"
-                },
-                {
-                    "namespace": "no3d_tools",
-                    "key": "source_file",
-                    "value": os.path.basename(bpy.data.filepath) if bpy.data.filepath else "unknown",
-                    "type": "single_line_text_field"
-                }
-            ]
-        }
-        
-        # Add author to metafields if available
-        if author:
-            json_data["metafields"].append({
-                "namespace": "no3d_tools",
-                "key": "author",
-                "value": author,
-                "type": "single_line_text_field"
-            })
-        
-        # Add geometry stats for mesh objects as metafields
-        if hasattr(asset, 'type') and asset.type == 'MESH' and hasattr(asset, 'data'):
-            mesh = asset.data
-            json_data["metafields"].extend([
-                {
-                    "namespace": "no3d_tools",
-                    "key": "vertices",
-                    "value": str(len(mesh.vertices)),
-                    "type": "number_integer"
-                },
-                {
-                    "namespace": "no3d_tools",
-                    "key": "faces",
-                    "value": str(len(mesh.polygons)),
-                    "type": "number_integer"
-                },
-                {
-                    "namespace": "no3d_tools",
-                    "key": "materials",
-                    "value": str(len(mesh.materials)),
-                    "type": "number_integer"
-            }
-            ])
-        
-        # Add custom properties as metafields
-        if hasattr(asset, 'items'):
-            custom_props = dict(asset.items())
-            for key, value in custom_props.items():
-                # Skip material_grade custom property
-                if key.lower() == 'material_grade':
-                    continue
-                    
-                # Determine metafield type based on value
-                metafield_type = "single_line_text_field"
-                if isinstance(value, (int, float)):
-                    metafield_type = "number_decimal" if isinstance(value, float) else "number_integer"
-                elif isinstance(value, bool):
-                    metafield_type = "boolean"
-                
-                json_data["metafields"].append({
-                    "namespace": "no3d_tools",
-                    "key": f"custom_{key.lower().replace(' ', '_')}",
-                    "value": str(value),
-                    "type": metafield_type
+def isolate_node_group(node_group, asset_name: str):
+    """Create an isolated duplicate of *node_group* (not marked as an asset)."""
+    isolated_name = f"{asset_name}_isolated_{node_group.name}"
+    if isolated_name in bpy.data.node_groups:
+        isolated_ng = bpy.data.node_groups[isolated_name]
+        if hasattr(isolated_ng, "asset_data") and isolated_ng.asset_data:
+            isolated_ng.asset_data.clear()
+        return isolated_ng
+
+    isolated_ng = node_group.copy()
+    isolated_ng.name = isolated_name
+    if hasattr(isolated_ng, "asset_data") and isolated_ng.asset_data:
+        isolated_ng.asset_data.clear()
+
+    log.info("Isolated NodeGroup: %s -> %s", node_group.name, isolated_name)
+    return isolated_ng
+
+
+def scan_node_group_for_asset_dependencies(node_group, exclude_asset=None) -> list[dict]:
+    """Recursively scan a NodeGroup for asset dependencies."""
+    dependencies: list[dict] = []
+    if not hasattr(node_group, "nodes"):
+        return dependencies
+
+    for node in node_group.nodes:
+        if hasattr(node, "node_tree") and node.node_tree:
+            referenced = node.node_tree
+            if referenced and is_asset_marked(referenced, exclude_asset=exclude_asset):
+                dependencies.append({
+                    "dependency": referenced,
+                    "type": "NodeGroup",
+                    "relationship": "nested_node_group",
+                    "node_name": node.name,
+                    "severity": "warning",
+                    "action_available": "isolate",
                 })
-        
-        # Add catalog information as metafield
-        json_data["metafields"].append({
-            "namespace": "no3d_tools",
-            "key": "catalog_name",
-            "value": catalog_name,
-            "type": "single_line_text_field"
-        })
-        
-        # Add file references as metafields
-        json_data["metafields"].extend([
-            {
-                "namespace": "no3d_tools",
-                "key": "blend_file",
-                "value": f"{asset_name}.blend",
-                "type": "single_line_text_field"
-            },
-            {
-                "namespace": "no3d_tools",
-                "key": "thumbnail",
-                "value": f"icon_{asset_name}.png",
-                "type": "single_line_text_field"
-            }
-        ])
-        
-        # Add Polar-specific metafields
-        json_data["metafields"].extend([
-            {
-                "namespace": "polar",
-                "key": "file_download_url",
-                "value": f"https://polar.sh/the-well-tarot/products/{handle}",
-                "type": "single_line_text_field"
-            },
-            {
-                "namespace": "polar",
-                "key": "file_size_bytes",
-                "value": str(get_file_size(os.path.join(asset_folder, f"{asset_name}.blend"))),
-                "type": "number_integer"
-            },
-            {
-                "namespace": "polar",
-                "key": "file_type",
-                "value": "blend",
-                "type": "single_line_text_field"
-            },
-            {
-                "namespace": "polar",
-                "key": "download_count",
-                "value": "0",
-                "type": "number_integer"
-            },
-            {
-                "namespace": "polar",
-                "key": "license_type",
-                "value": "commercial",
-                "type": "single_line_text_field"
-            },
-            {
-                "namespace": "polar",
-                "key": "compatibility",
-                "value": f"Blender {bpy.app.version[0]}.{bpy.app.version[1]}+",
-                "type": "single_line_text_field"
-            }
-        ])
-        
-        # Save JSON file
-        json_path = os.path.join(asset_folder, f"{asset_name}.json")
-        with open(json_path, 'w') as f:
-            json.dump(json_data, f, indent=2)
-        
-        # Save description as separate text file
-        if description_text:
-            desc_path = os.path.join(asset_folder, f"desc_{asset_name}.txt")
-            with open(desc_path, 'w', encoding='utf-8') as f:
-                f.write(description_text)
-            print(f"Saved description to {desc_path}")
-        
-        return json_path
-        
-    except Exception as e:
-        print(f"Error generating JSON for asset {asset_name}: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
+                nested = scan_node_group_for_asset_dependencies(referenced, exclude_asset)
+                dependencies.extend(nested)
+    return dependencies
 
 
-def export_asset_thumbnail(asset, target_dir: str):
-    """Export asset thumbnail as PNG image."""
-    try:
-        asset_name = getattr(asset, 'name', 'asset')
-        
-        # Create individual folder for this asset
-        asset_folder = os.path.join(target_dir, asset_name)
-        os.makedirs(asset_folder, exist_ok=True)
-        
-        # Get asset preview
-        asset_data = getattr(asset, 'asset_data', None)
-        if not asset_data:
-            print(f"No asset data found for {asset_name}")
-            return None
-        
-        # Try to render a simple preview using Blender's preview rendering
-        thumbnail_path = os.path.join(asset_folder, f"icon_{asset_name}.png")
-        
-        # Get the asset's preview image from Blender's preview system
-        preview = asset.preview
-        if preview and preview.image_size[0] > 0:
-            # Extract preview pixel data
-            pixels = list(preview.image_pixels_float)
-            
-            if len(pixels) > 0:
-                # Convert float pixels to bytes (RGBA format)
-                import array
-                width, height = preview.image_size
-                
-                # Create image data structure
-                # Blender stores previews as float RGBA, need to convert to byte RGBA
-                pixel_bytes = array.array('B')
-                for i in range(0, len(pixels), 4):
-                    # Convert float (0.0-1.0) to byte (0-255)
-                    r = int(pixels[i] * 255)
-                    g = int(pixels[i+1] * 255)
-                    b = int(pixels[i+2] * 255)
-                    a = int(pixels[i+3] * 255)
-                    pixel_bytes.extend([r, g, b, a])
-                
-                # Create a temporary image in Blender
-                temp_image = bpy.data.images.new(
-                    name=f"temp_preview_{asset_name}",
-                    width=width,
-                    height=height,
-                    alpha=True
-                )
-                
-                # Set the pixels
-                temp_image.pixels = [p/255.0 for p in pixel_bytes]
-                
-                # Save the image
-                temp_image.filepath_raw = thumbnail_path
-                temp_image.file_format = 'PNG'
-                temp_image.save()
-                
-                # Clean up
-                bpy.data.images.remove(temp_image)
-                
-                print(f"Exported thumbnail for {asset_name} to {thumbnail_path}")
-                return thumbnail_path
-            else:
-                print(f"Preview exists but has no pixel data for {asset_name}")
-                return None
-        else:
-            print(f"No preview image available for {asset_name}")
-            return None
-        
-    except Exception as e:
-        print(f"Error exporting thumbnail for asset {asset_name}: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
+def scan_object_for_asset_dependencies(obj, exclude_asset=None) -> list[dict]:
+    """Scan an object for asset dependencies."""
+    dependencies: list[dict] = []
+
+    if hasattr(obj, "modifiers"):
+        for mod in obj.modifiers:
+            if mod.type == "NODES" and hasattr(mod, "node_group") and mod.node_group:
+                if is_asset_marked(mod.node_group, exclude_asset=exclude_asset):
+                    dependencies.append({
+                        "dependency": mod.node_group,
+                        "type": "NodeGroup",
+                        "relationship": "modifier_reference",
+                        "modifier_name": mod.name,
+                        "severity": "warning",
+                        "action_available": "remove",
+                    })
+
+    if hasattr(obj, "data") and obj.data and hasattr(obj.data, "materials"):
+        for mat in obj.data.materials:
+            if mat and is_asset_marked(mat, exclude_asset=exclude_asset):
+                dependencies.append({
+                    "dependency": mat,
+                    "type": "Material",
+                    "relationship": "material_slot",
+                    "severity": "warning",
+                    "action_available": "isolate",
+                })
+            elif mat:
+                deps = scan_material_for_asset_dependencies(mat, exclude_asset)
+                dependencies.extend(deps)
+
+    return dependencies
+
+
+def scan_material_for_asset_dependencies(material, exclude_asset=None) -> list[dict]:
+    """Scan a material's node tree for asset dependencies."""
+    if hasattr(material, "node_tree") and material.node_tree:
+        return scan_node_group_for_asset_dependencies(material.node_tree, exclude_asset)
+    return []
+
+
+def detect_asset_dependencies(asset) -> list[dict]:
+    """Main entry point: scan *asset* for problematic dependencies."""
+    asset_type = type(asset).__name__
+
+    if asset_type == "Object":
+        return scan_object_for_asset_dependencies(asset, exclude_asset=asset)
+    if asset_type == "NodeGroup":
+        return scan_node_group_for_asset_dependencies(asset, exclude_asset=asset)
+    if asset_type == "Material":
+        return scan_material_for_asset_dependencies(asset, exclude_asset=asset)
+    if asset_type == "Collection":
+        deps: list[dict] = []
+        for obj in asset.objects:
+            if not is_asset_marked(obj, exclude_asset=asset):
+                deps.extend(scan_object_for_asset_dependencies(obj, exclude_asset=asset))
+        return deps
+
+    return []
