@@ -356,7 +356,7 @@ def _build_frontmatter_string(fm: dict) -> str:
     return "\n".join(lines)
 
 
-def generate_asset_frontmatter(asset, target_dir: str, prefs=None) -> str | None:
+def generate_asset_frontmatter(asset, target_dir: str, prefs=None, overwrite: bool = False) -> str | None:
     """Write ``desc_{AssetName}.md`` with YAML frontmatter.
 
     * If ``{Name}.json`` exists in *target_dir*, seed from it.
@@ -373,6 +373,14 @@ def generate_asset_frontmatter(asset, target_dir: str, prefs=None) -> str | None
 
     desc_path = os.path.join(asset_folder, f"desc_{asset_name}.md")
     json_path = os.path.join(asset_folder, f"{asset_name}.json")
+
+    if os.path.isfile(desc_path) and not overwrite:
+        log.info(
+            "Skipping frontmatter overwrite for '%s' (existing file: %s)",
+            asset_name,
+            desc_path,
+        )
+        return desc_path
 
     # ------------------------------------------------------------------
     # Collect metadata from asset
@@ -479,12 +487,20 @@ def generate_asset_frontmatter(asset, target_dir: str, prefs=None) -> str | None
 # Thumbnail export (retained from v1, cleaned up)
 # ---------------------------------------------------------------------------
 
-def export_asset_thumbnail(asset, target_dir: str) -> str | None:
+def export_asset_thumbnail(asset, target_dir: str, overwrite: bool = True) -> str | None:
     """Export asset thumbnail as a PNG to ``target_dir/{asset_name}/icon_{asset_name}.png``."""
     asset_name = getattr(asset, "name", "asset")
     asset_folder = os.path.join(target_dir, asset_name)
     os.makedirs(asset_folder, exist_ok=True)
     thumbnail_path = os.path.join(asset_folder, f"icon_{asset_name}.png")
+
+    if os.path.isfile(thumbnail_path) and not overwrite:
+        log.info(
+            "Skipping thumbnail overwrite for '%s' (existing file: %s)",
+            asset_name,
+            thumbnail_path,
+        )
+        return thumbnail_path
 
     asset_data = getattr(asset, "asset_data", None)
     if not asset_data:

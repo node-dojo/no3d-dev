@@ -98,8 +98,18 @@ def _get_active_asset(context):
 # Helper: per-asset export pipeline
 # ---------------------------------------------------------------------------
 
-def _export_single_asset(asset, directory: str, prefs, export_blend: bool = True,
-                          export_thumbnail: bool = True, export_frontmatter: bool = True):
+def _export_single_asset(
+    asset,
+    directory: str,
+    prefs,
+    export_blend: bool = True,
+    export_thumbnail: bool = True,
+    export_frontmatter: bool = True,
+    overwrite_blend: bool = True,
+    overwrite_thumbnail: bool = True,
+    overwrite_frontmatter: bool = False,
+    overwrite_notes: bool = False,
+):
     """Run the full export pipeline for one asset.  Returns a list of error
     strings (empty on success)."""
     errors: list[str] = []
@@ -114,25 +124,41 @@ def _export_single_asset(asset, directory: str, prefs, export_blend: bool = True
             errors.append(f"'{asset_name}': current file must be saved before exporting .blend")
         else:
             output_path = os.path.join(asset_folder, f"{asset_name}.blend")
-            ok, size, err = blend_export.export_asset_blend(asset, source, output_path)
-            if not ok:
-                errors.append(f"'{asset_name}' .blend export failed: {err}")
+            if os.path.isfile(output_path) and not overwrite_blend:
+                log.info(
+                    "Skipping .blend overwrite for '%s' (existing file: %s)",
+                    asset_name,
+                    output_path,
+                )
+            else:
+                ok, size, err = blend_export.export_asset_blend(asset, source, output_path)
+                if not ok:
+                    errors.append(f"'{asset_name}' .blend export failed: {err}")
 
     # --- Frontmatter ---
     if export_frontmatter:
-        result = utils.generate_asset_frontmatter(asset, directory, prefs)
+        result = utils.generate_asset_frontmatter(
+            asset,
+            directory,
+            prefs,
+            overwrite=overwrite_frontmatter,
+        )
         if result is None:
             errors.append(f"'{asset_name}': frontmatter generation failed")
 
     # --- Thumbnail ---
     if export_thumbnail:
-        result = utils.export_asset_thumbnail(asset, directory)
+        result = utils.export_asset_thumbnail(
+            asset,
+            directory,
+            overwrite=overwrite_thumbnail,
+        )
         if result is None:
             log.info("No thumbnail exported for '%s' (preview may be unavailable)", asset_name)
 
     # --- Notes ---
     if note_manager.has_notes(asset_name):
-        note_manager.export_notes(asset_name, asset_folder)
+        note_manager.export_notes(asset_name, asset_folder, overwrite=overwrite_notes)
 
     return errors
 
@@ -158,6 +184,39 @@ class NO3D_OT_export_active_asset(Operator):
         default="",
     )
 
+    overwrite_blend: BoolProperty(
+        name="Overwrite .blend",
+        description="Overwrite existing {AssetName}.blend files",
+        default=True,
+    )
+
+    overwrite_thumbnail: BoolProperty(
+        name="Overwrite Icon",
+        description="Overwrite existing icon_{AssetName}.png files",
+        default=True,
+    )
+
+    overwrite_frontmatter: BoolProperty(
+        name="Overwrite Frontmatter (.md)",
+        description="Overwrite existing desc_{AssetName}.md files",
+        default=False,
+    )
+
+    overwrite_notes: BoolProperty(
+        name="Overwrite Notes (.md)",
+        description="Overwrite existing notes_{AssetName}.md files",
+        default=False,
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        box = layout.box()
+        box.label(text="Overwrite Existing Files:")
+        box.prop(self, "overwrite_blend")
+        box.prop(self, "overwrite_thumbnail")
+        box.prop(self, "overwrite_frontmatter")
+        box.prop(self, "overwrite_notes")
+
     def invoke(self, context, event):
         # Pre-fill from preferences if available
         prefs = _get_prefs_obj()
@@ -177,7 +236,15 @@ class NO3D_OT_export_active_asset(Operator):
             return {"CANCELLED"}
 
         prefs = _get_prefs_obj()
-        errors = _export_single_asset(asset, self.directory, prefs)
+        errors = _export_single_asset(
+            asset,
+            self.directory,
+            prefs,
+            overwrite_blend=self.overwrite_blend,
+            overwrite_thumbnail=self.overwrite_thumbnail,
+            overwrite_frontmatter=self.overwrite_frontmatter,
+            overwrite_notes=self.overwrite_notes,
+        )
 
         if errors:
             for e in errors:
@@ -237,12 +304,46 @@ class NO3D_OT_export_all_assets(Operator):
         default=True,
     )
 
+    overwrite_blend: BoolProperty(
+        name="Overwrite .blend",
+        description="Overwrite existing {AssetName}.blend files",
+        default=True,
+    )
+
+    overwrite_thumbnail: BoolProperty(
+        name="Overwrite Icon",
+        description="Overwrite existing icon_{AssetName}.png files",
+        default=True,
+    )
+
+    overwrite_frontmatter: BoolProperty(
+        name="Overwrite Frontmatter (.md)",
+        description="Overwrite existing desc_{AssetName}.md files",
+        default=False,
+    )
+
+    overwrite_notes: BoolProperty(
+        name="Overwrite Notes (.md)",
+        description="Overwrite existing notes_{AssetName}.md files",
+        default=False,
+    )
+
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "asset_type_filter")
         layout.prop(self, "catalog_filter")
         layout.prop(self, "export_thumbnail")
         layout.prop(self, "export_frontmatter")
+        box = layout.box()
+        box.label(text="Overwrite Existing Files:")
+        box.prop(self, "overwrite_blend")
+        icon_row = box.row()
+        icon_row.enabled = self.export_thumbnail
+        icon_row.prop(self, "overwrite_thumbnail")
+        frontmatter_row = box.row()
+        frontmatter_row.enabled = self.export_frontmatter
+        frontmatter_row.prop(self, "overwrite_frontmatter")
+        box.prop(self, "overwrite_notes")
 
     def invoke(self, context, event):
         prefs = _get_prefs_obj()
@@ -298,6 +399,10 @@ class NO3D_OT_export_all_assets(Operator):
                 prefs,
                 export_thumbnail=self.export_thumbnail,
                 export_frontmatter=self.export_frontmatter,
+                overwrite_blend=self.overwrite_blend,
+                overwrite_thumbnail=self.overwrite_thumbnail,
+                overwrite_frontmatter=self.overwrite_frontmatter,
+                overwrite_notes=self.overwrite_notes,
             )
             if errs:
                 all_errors.extend(errs)
@@ -354,10 +459,17 @@ class NO3D_OT_export_thumbnails_only(Operator):
         options=set(),
     )
 
+    overwrite_thumbnail: BoolProperty(
+        name="Overwrite Icon",
+        description="Overwrite existing icon_{AssetName}.png files",
+        default=True,
+    )
+
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "asset_type_filter")
         layout.prop(self, "catalog_filter")
+        layout.prop(self, "overwrite_thumbnail")
 
     def invoke(self, context, event):
         prefs = _get_prefs_obj()
@@ -400,7 +512,11 @@ class NO3D_OT_export_thumbnails_only(Operator):
         for i, asset in enumerate(all_assets):
             wm.progress_update(i)
             try:
-                path = utils.export_asset_thumbnail(asset, self.directory)
+                path = utils.export_asset_thumbnail(
+                    asset,
+                    self.directory,
+                    overwrite=self.overwrite_thumbnail,
+                )
                 if path:
                     exported += 1
             except Exception as exc:

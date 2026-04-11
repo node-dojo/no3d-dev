@@ -54,7 +54,7 @@ def has_notes(asset_name: str) -> bool:
     return bool(_session_notes.get(asset_name))
 
 
-def export_notes(asset_name: str, target_dir: str) -> str | None:
+def export_notes(asset_name: str, target_dir: str, overwrite: bool = True) -> str | None:
     """Write ``notes_{asset_name}.md`` into *target_dir*.
 
     Returns the written file path, or ``None`` if there are no notes.
@@ -65,6 +65,13 @@ def export_notes(asset_name: str, target_dir: str) -> str | None:
 
     os.makedirs(target_dir, exist_ok=True)
     filepath = os.path.join(target_dir, f"notes_{asset_name}.md")
+    if os.path.isfile(filepath) and not overwrite:
+        log.info(
+            "Skipping notes overwrite for '%s' (existing file: %s)",
+            asset_name,
+            filepath,
+        )
+        return filepath
 
     today = datetime.now().strftime("%Y-%m-%d")
     lines: list[str] = [

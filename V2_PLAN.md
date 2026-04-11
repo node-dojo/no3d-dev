@@ -97,10 +97,10 @@ The frontmatter schema is shared with the Obsidian plugin — both tools read an
 
 ```yaml
 ---
-title: "Dojo Bracket"
-handle: "dojo-bracket"
+title: "Dojo Support Bracket"
+handle: "dojo-support-bracket"
 price: "0.00"
-sku: "NO3D-TOOLS-DOJO-BRACKET"
+sku: "NO3D-TOOLS-DOJO-SUPPORT-BRACKET"
 status: draft
 vendor: "The Well Tarot"
 product_type: "Blender Add-on"
@@ -120,7 +120,7 @@ changelog:
     description: "Initial export"
 ---
 
-# Dojo Bracket
+# Dojo Support Bracket
 
 <!-- Description to be written in Obsidian -->
 ```
@@ -240,9 +240,9 @@ The addon bundles a `_export_single_asset.py` script that the subprocess execute
 ```
 blender --background _export_template.blend --python _export_single_asset.py -- \
   --source "/path/to/source.blend" \
-  --asset "Dojo Bracket" \
+  --asset "Dojo Support Bracket" \
   --asset-type "Object" \
-  --output "/path/to/library/Dojo Bracket/Dojo Bracket.blend"
+  --output "/path/to/library/Dojo Bracket/Dojo Support Bracket.blend"
 ```
 
 ---

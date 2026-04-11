@@ -1,0 +1,38 @@
+
+┌──────────────────────────────────────┐
+│ BRACKET GEN 4.5                      │
+├──────────────────────────────────────┤
+│                           Geometry   ○
+│                                      │
+□ Label                                │
+□ Label                                │
+▮ Bracket Depth                        │
+▮ Bracket Radius                       │
+▮ Width                                │
+○ Wings                                │
+▮ Height                               │
+▮ Wall Thickness                       │
+▮ Bolt Radius                          │
+▮ Enclosure                            │
+▮ Roundness                            │
+└──────────────────────────────────────┘
+
+Collapsible panel example (if Wings were a panel):
+
+┌──────────────────────────────────────┐
+│ BRACKET GEN 4.5                      │
+├──────────────────────────────────────┤
+│                           Geometry   ○
+│                                      │
+□ Label                                │
+□ Label                                │
+▮ Bracket Depth                        │
+▮ Bracket Radius                       │
+▮ Width                                │
+├─ ▸ wings ────────────────────────────┤
+▮ Height                               │
+▮ Wall Thickness                       │
+▮ Bolt Radius                          │
+▮ Enclosure                            │
+▮ Roundness                            │
+└──────────────────────────────────────┘

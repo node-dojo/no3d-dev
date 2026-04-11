@@ -89,9 +89,11 @@ def export_asset_blend(
     # Ensure output directory exists
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    # Build command
+    # Build command — --factory-startup prevents user addons from loading
+    # in the subprocess, which avoids crashes from addon conflicts
     cmd = [
         blender_bin,
+        "--factory-startup",
         "--background",
     ]
     if use_template:

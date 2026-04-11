@@ -1,0 +1,9 @@
+SOCKET SHAPE KEY (ASCII/Unicode)
+
+CIRCLE         -> ○
+CIRCLE_DOT     -> ◉
+SQUARE         -> □
+SQUARE_DOT     -> ■
+DIAMOND        -> ◇
+DIAMOND_DOT    -> ◆
+TALL_RECT      -> ▮

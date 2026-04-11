@@ -9,9 +9,9 @@ Usage (invoked by blend_export.py — not called directly):
 
     blender --background _export_template.blend --python _export_single_asset.py \
         -- --source "/path/to/source.blend" \
-           --asset "Dojo Bracket" \
+           --asset "Dojo Support Bracket" \
            --asset-type "Object" \
-           --output "/path/to/output/Dojo Bracket.blend"
+           --output "/path/to/output/Dojo Support Bracket.blend"
 """
 
 import argparse
@@ -107,7 +107,14 @@ def _cleanup_smuggled_assets(target_name: str) -> None:
         for block in collection:
             if block.asset_data is not None and block.name != target_name:
                 print(f"  Stripping asset marking from: {type(block).__name__} '{block.name}'")
-                block.asset_data.clear()
+                # Blender 5.0+ removed asset_data.clear(); use asset_clear() instead
+                if hasattr(block, 'asset_clear'):
+                    block.asset_clear()
+                elif hasattr(block.asset_data, 'clear'):
+                    block.asset_data.clear()
+                else:
+                    # Fallback: mark for removal by clearing the fake user
+                    block.use_fake_user = False
 
     # Purge true orphans
     bpy.ops.outliner.orphans_purge(
@@ -115,6 +122,58 @@ def _cleanup_smuggled_assets(target_name: str) -> None:
         do_linked_ids=True,
         do_recursive=True,
     )
+
+
+def _extract_thumbnail(asset_name: str, output_dir: str) -> None:
+    """Extract the asset preview image as icon_{FolderName}.png.
+
+    Uses the folder name (from output_dir) for the icon filename,
+    not the asset name, to match the pipeline convention.
+    """
+    import array as _array
+
+    folder_name = os.path.basename(output_dir)
+
+    # Find the marked asset
+    for col in [bpy.data.objects, bpy.data.node_groups,
+                bpy.data.materials, bpy.data.collections]:
+        for item in col:
+            if getattr(item, "asset_data", None) is None:
+                continue
+            if item.name != asset_name:
+                continue
+
+            preview = item.preview
+            if not preview or preview.image_size[0] == 0:
+                print(f"  No preview available for '{item.name}' — skipping thumbnail")
+                return
+
+            width, height = preview.image_size
+            pixels = list(preview.image_pixels_float)
+            if not pixels:
+                print(f"  Empty preview pixels for '{item.name}' — skipping thumbnail")
+                return
+
+            # Convert float RGBA to byte array
+            pixel_bytes = _array.array("B")
+            for i in range(0, len(pixels), 4):
+                r = max(0, min(255, int(pixels[i] * 255)))
+                g = max(0, min(255, int(pixels[i + 1] * 255)))
+                b = max(0, min(255, int(pixels[i + 2] * 255)))
+                a = max(0, min(255, int(pixels[i + 3] * 255)))
+                pixel_bytes.extend([r, g, b, a])
+
+            thumb_path = os.path.join(output_dir, f"icon_{folder_name}.png")
+            temp_img = bpy.data.images.new("_tmp_thumb", width=width, height=height, alpha=True)
+            temp_img.pixels = [p / 255.0 for p in pixel_bytes]
+            temp_img.filepath_raw = thumb_path
+            temp_img.file_format = "PNG"
+            temp_img.save()
+            bpy.data.images.remove(temp_img)
+            print(f"  Thumbnail saved: {thumb_path} ({width}x{height})")
+            return
+
+    print(f"  Asset '{asset_name}' not found for thumbnail extraction")
 
 
 def main() -> None:
@@ -134,9 +193,13 @@ def main() -> None:
     _cleanup_smuggled_assets(args.asset)
 
     # --- Save ---
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    output_dir = os.path.dirname(args.output)
+    os.makedirs(output_dir, exist_ok=True)
     bpy.ops.wm.save_as_mainfile(filepath=args.output, compress=True)
     print(f"Saved to {args.output}")
+
+    # --- Extract thumbnail ---
+    _extract_thumbnail(args.asset, output_dir)
 
 
 if __name__ == "__main__":

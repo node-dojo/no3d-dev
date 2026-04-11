@@ -49,7 +49,7 @@ class NO3D_PT_asset_export_panel(Panel):
     bl_idname = "NO3D_PT_asset_export_panel"
     bl_space_type = 'FILE_BROWSER'
     bl_region_type = 'UI'
-    bl_category = "NO3D"
+    bl_category = "No3D Dev"
 
     def draw(self, context):
         layout = self.layout
@@ -90,7 +90,7 @@ class NO3D_PT_asset_cleanup_panel(Panel):
     bl_idname = "NO3D_PT_asset_cleanup_panel"
     bl_space_type = 'FILE_BROWSER'
     bl_region_type = 'TOOL_PROPS'
-    bl_category = "NO3D"
+    bl_category = "No3D Dev"
 
     def draw(self, context):
         layout = self.layout
@@ -211,7 +211,7 @@ class NO3D_PT_dev_notes(Panel):
     bl_idname = "NO3D_PT_dev_notes"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "NO3D"
+    bl_category = "No3D Dev"
 
     def draw(self, context):
         layout = self.layout

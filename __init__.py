@@ -1,10 +1,10 @@
 bl_info = {
     "name": "No3d Asset Developer",
     "author": "NO3D Tools",
-    "version": (2, 0, 0),
+    "version": (2, 1, 0),
     "blender": (5, 0, 0),
     "location": "Asset Browser > Context Menu",
-    "description": "Export assets with frontmatter metadata, thumbnails, and dev notes",
+    "description": "Export clean .blend files via template-based subprocess extraction (--factory-startup), frontmatter metadata, thumbnails, and dev notes",
     "category": "Asset",
     "doc_url": "",
     "tracker_url": "",
