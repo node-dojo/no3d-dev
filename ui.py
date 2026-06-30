@@ -6,9 +6,12 @@ Asset Browser context menu, export panel, cleanup panel, and N-panel dev notes.
 
 import logging
 
+import time
+
 import bpy
 from bpy.types import Menu, Panel
 
+from . import wip_sync
 from .notes import note_manager
 
 log = logging.getLogger(__name__)
@@ -41,47 +44,6 @@ class NO3D_MT_asset_export_menu(Menu):
             text="Export Thumbnails Only",
             icon='IMAGE_DATA',
         )
-
-
-class NO3D_PT_asset_export_panel(Panel):
-    """NO3D Export Tools panel in Asset Browser"""
-    bl_label = "NO3D Export Tools"
-    bl_idname = "NO3D_PT_asset_export_panel"
-    bl_space_type = 'FILE_BROWSER'
-    bl_region_type = 'UI'
-    bl_category = "No3D Dev"
-
-    def draw(self, context):
-        layout = self.layout
-
-        box = layout.box()
-        box.label(text="Single Asset:", icon='EXPORT')
-        box.operator(
-            "asset.export_active_no3d",
-            text="Export Active Asset",
-            icon='EXPORT',
-        )
-
-        box = layout.box()
-        box.label(text="Full Export:", icon='EXPORT')
-        box.operator(
-            "asset.export_all_no3d",
-            text="Export All Assets",
-            icon='EXPORT',
-        )
-
-        box = layout.box()
-        box.label(text="Thumbnails Only:", icon='IMAGE_DATA')
-        box.operator(
-            "asset.export_thumbnails_only_no3d",
-            text="Export All Thumbnails",
-            icon='IMAGE_DATA',
-        )
-
-        box = layout.box()
-        box.label(text="Catalog Selection:", icon='ASSET_MANAGER')
-        box.label(text="Use the export operators to select", icon='INFO')
-        box.label(text="which catalog to export from.")
 
 
 class NO3D_PT_asset_cleanup_panel(Panel):
@@ -202,6 +164,145 @@ class NO3D_PT_asset_cleanup_panel(Panel):
 
 
 # ---------------------------------------------------------------------------
+# v3.0 — Method-selectable extraction panel (View3D N-panel)
+# ---------------------------------------------------------------------------
+
+def _draw_extract_v3(self, context):
+    """Shared draw body: extraction method picker + WIP auto-sync + Recents.
+
+    Registered on multiple space types (3D Viewport, Asset Browser) so the
+    same panel appears wherever you happen to be working.
+    """
+    layout = self.layout
+    wm = context.window_manager
+
+    box = layout.box()
+    box.label(text="Extraction Method:", icon='PRESET')
+    box.prop(wm, "no3d_extraction_method", text="")
+
+    method = wm.no3d_extraction_method
+    hint_box = layout.box()
+    if method == "TEMPLATE_APPEND":
+        hint_box.label(text="A - Template Append (subprocess)", icon='SETTINGS')
+        hint_box.label(text="- Preserves Scene + METRIC/mm units")
+        hint_box.label(text="- Strips smuggled assets")
+        hint_box.label(text="- Requires current file saved")
+    else:
+        hint_box.label(text="B - Datablock Write (in-process)", icon='SCRIPT')
+        hint_box.label(text="- libraries.write() - pose-lib native")
+        hint_box.label(text="- No Scene/units in output")
+        hint_box.label(text="- Transitive deps come along")
+
+    layout.separator()
+
+    col = layout.column(align=True)
+    col.scale_y = 1.3
+    col.operator(
+        "asset.extract_v3_active_no3d",
+        text="Extract Active Asset",
+        icon='EXPORT',
+    )
+    col.operator(
+        "asset.extract_v3_all_no3d",
+        text="Extract All Assets",
+        icon='PACKAGE',
+    )
+
+    # -- WIP Auto-Sync --
+    layout.separator()
+    wip_box = layout.box()
+    header = wip_box.row()
+    header.label(text="WIP Auto-Sync", icon='FILE_REFRESH')
+    method_label = "Method A" if method == "TEMPLATE_APPEND" else "Method B"
+    header.label(text=f"uses {method_label}")
+    wip_box.prop(wm, "no3d_wip_folder", text="Folder")
+
+    if not wip_sync.get_wip_folder():
+        warn = wip_box.box()
+        warn.alert = True
+        warn.label(text="Set folder to enable auto-sync", icon='ERROR')
+    else:
+        toggles = wip_box.column(align=True)
+        toggles.prop(wm, "no3d_wip_auto_mark")
+        toggles.prop(wm, "no3d_wip_auto_save")
+        toggles.prop(wm, "no3d_wip_auto_rename")
+
+    sync_row = wip_box.row()
+    sync_row.scale_y = 1.2
+    sync_row.operator(
+        "asset.sync_wip_all_no3d",
+        text="Sync All Now",
+        icon='FILE_REFRESH',
+    )
+
+    status = wip_sync.get_status()
+    if status.get("msg"):
+        ago = max(0, int(time.time() - status.get("ts", 0)))
+        wip_box.label(text=f"{status['msg']} ({ago}s ago)", icon='INFO')
+
+    # -- Recents --
+    if wip_sync.get_wip_folder():
+        recents_box = wip_box.box()
+        header = recents_box.row(align=True)
+        header.label(text="Recents", icon='SORTTIME')
+        header.prop(wm, "no3d_wip_recent_count", text="")
+        limit = int(getattr(wm, "no3d_wip_recent_count", 8))
+        recents = wip_sync.list_recent_folders(limit)
+        if not recents:
+            recents_box.label(text="No assets synced yet", icon='INFO')
+        else:
+            now = time.time()
+            col = recents_box.column(align=True)
+            for name, mtime in recents:
+                age = now - mtime
+                if age < 60:
+                    ago_str = f"{int(age)}s"
+                elif age < 3600:
+                    ago_str = f"{int(age / 60)}m"
+                elif age < 86400:
+                    ago_str = f"{int(age / 3600)}h"
+                else:
+                    ago_str = f"{int(age / 86400)}d"
+                row = col.row(align=True)
+                op = row.operator(
+                    "asset.open_wip_folder_no3d",
+                    text=f"{name}",
+                    icon='FILE_FOLDER',
+                    emboss=False,
+                )
+                op.folder_name = name
+                row.label(text=ago_str)
+
+
+class NO3D_PT_extract_v3(Panel):
+    """3D Viewport N-panel."""
+    bl_label = "Asset Extraction (v3)"
+    bl_idname = "NO3D_PT_extract_v3"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "No3D Dev"
+
+    draw = _draw_extract_v3
+
+
+class NO3D_PT_extract_v3_assetbrowser(Panel):
+    """Same panel, mounted in the Asset Browser's right TOOL_PROPS column."""
+    bl_label = "Asset Extraction (v3)"
+    bl_idname = "NO3D_PT_extract_v3_assetbrowser"
+    bl_space_type = 'FILE_BROWSER'
+    bl_region_type = 'TOOL_PROPS'
+    bl_category = "No3D Dev"
+
+    @classmethod
+    def poll(cls, context):
+        # Only show in Asset Browser mode, not regular File Browser.
+        sd = getattr(context.space_data, "browse_mode", None)
+        return sd == 'ASSETS' if sd is not None else True
+
+    draw = _draw_extract_v3
+
+
+# ---------------------------------------------------------------------------
 # Dev Notes panel (Phase 3) — View3D N-panel
 # ---------------------------------------------------------------------------
 
@@ -300,8 +401,9 @@ def draw_asset_browser_details_panel(self, context):
 
 _classes = (
     NO3D_MT_asset_export_menu,
-    NO3D_PT_asset_export_panel,
     NO3D_PT_asset_cleanup_panel,
+    NO3D_PT_extract_v3,
+    NO3D_PT_extract_v3_assetbrowser,
     NO3D_PT_dev_notes,
 )
 

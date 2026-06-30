@@ -21,6 +21,8 @@ from bpy.types import Operator
 
 from . import utils
 from . import blend_export
+from . import extraction_methods
+from . import wip_sync
 from .notes import note_manager
 
 log = logging.getLogger(__name__)
@@ -555,7 +557,7 @@ class NO3D_OT_update_addon(Operator):
     def invoke(self, context, event):
         default_path = os.path.expanduser(
             "~/Library/CloudStorage/Dropbox/Caveman Creative/"
-            "THE WELL_Digital Assets/The Well Code/SOLVET GLOBAL"
+            "THE WELL_Digital Assets/The Well Code/solvet-global"
         )
         if os.path.exists(default_path):
             zip_files = glob.glob(os.path.join(default_path, "No3d_Asset_Developer_v*.zip"))
@@ -581,7 +583,7 @@ class NO3D_OT_update_addon(Operator):
             return {"CANCELLED"}
 
         try:
-            addon_name = "no3d_tools_addon"
+            addon_name = "no3d_asset_developer"
             if addon_name in bpy.context.preferences.addons:
                 bpy.ops.preferences.addon_disable(module=addon_name)
             bpy.ops.preferences.addon_install(filepath=self.filepath, overwrite=True)
@@ -840,6 +842,159 @@ class NO3D_OT_clean_all_dependencies(Operator):
 
 
 # ===================================================================
+# v3.0 — Method-selectable extraction (Method A / Method B)
+# ===================================================================
+
+def _run_v3_extraction(asset, directory: str, method: str, prefs) -> tuple[list[str], list[str]]:
+    """Run the chosen extraction method for one asset.
+
+    Reuses utils.export_asset_thumbnail + frontmatter + notes after the .blend
+    is written, so Method B benefits from the same metadata pipeline.
+    Returns (errors, warnings).
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+    asset_name = getattr(asset, "name", "unknown")
+    asset_folder = os.path.join(directory, asset_name)
+    os.makedirs(asset_folder, exist_ok=True)
+    output_path = os.path.join(asset_folder, f"{asset_name}.blend")
+
+    source = bpy.data.filepath
+    if method == "TEMPLATE_APPEND" and not source:
+        errors.append(f"'{asset_name}': current file must be saved before Method A export")
+        return errors, warnings
+
+    ok, size, err, warns = extraction_methods.extract(method, asset, source, output_path)
+    warnings.extend(warns)
+    if not ok:
+        errors.append(f"'{asset_name}' extraction failed ({method}): {err}")
+        return errors, warnings
+
+    # Thumbnail, frontmatter, notes — same pipeline as v2
+    try:
+        utils.export_asset_thumbnail(asset, directory, overwrite=True)
+    except Exception as exc:
+        warnings.append(f"thumbnail: {exc}")
+    try:
+        utils.generate_asset_frontmatter(asset, directory, prefs, overwrite=False)
+    except Exception as exc:
+        warnings.append(f"frontmatter: {exc}")
+    if note_manager.has_notes(asset_name):
+        note_manager.export_notes(asset_name, asset_folder, overwrite=False)
+
+    return errors, warnings
+
+
+class NO3D_OT_extract_v3_active(Operator):
+    """v3.0: Extract the active asset using the method selected in the N-panel."""
+    bl_idname = "asset.extract_v3_active_no3d"
+    bl_label = "Extract Active Asset (v3)"
+    bl_description = "Extract the active asset via the method chosen in the No3D Dev N-panel"
+    bl_options = {"REGISTER", "UNDO"}
+
+    directory: StringProperty(
+        name="Export Directory",
+        subtype="DIR_PATH",
+        default="",
+    )
+
+    def invoke(self, context, event):
+        prefs = _get_prefs_obj()
+        if prefs and prefs.export_library_path:
+            self.directory = prefs.export_library_path
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
+
+    def execute(self, context):
+        if not self.directory:
+            self.report({"ERROR"}, "No directory selected")
+            return {"CANCELLED"}
+        asset = _get_active_asset(context)
+        if not asset:
+            self.report({"ERROR"}, "No active asset. Select an asset in the Asset Browser.")
+            return {"CANCELLED"}
+
+        method = context.window_manager.no3d_extraction_method
+        prefs = _get_prefs_obj()
+        errors, warnings = _run_v3_extraction(asset, self.directory, method, prefs)
+
+        if errors:
+            for e in errors:
+                log.error(e)
+            self.report({"ERROR"}, "; ".join(errors))
+            return {"CANCELLED"}
+
+        label = "Method A" if method == "TEMPLATE_APPEND" else "Method B"
+        msg = f"[{label}] Exported '{asset.name}'"
+        if warnings:
+            msg += f" — {len(warnings)} warning(s): {warnings[0]}"
+        self.report({"WARNING" if warnings else "INFO"}, msg)
+        return {"FINISHED"}
+
+
+class NO3D_OT_extract_v3_all(Operator):
+    """v3.0: Extract all visible assets using the selected method."""
+    bl_idname = "asset.extract_v3_all_no3d"
+    bl_label = "Extract All Assets (v3)"
+    bl_description = "Extract all marked assets using the method chosen in the No3D Dev N-panel"
+    bl_options = {"REGISTER", "UNDO"}
+
+    directory: StringProperty(
+        name="Export Directory",
+        subtype="DIR_PATH",
+        default="",
+    )
+
+    def invoke(self, context, event):
+        prefs = _get_prefs_obj()
+        if prefs and prefs.export_library_path:
+            self.directory = prefs.export_library_path
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
+
+    def execute(self, context):
+        if not self.directory:
+            self.report({"ERROR"}, "No directory selected")
+            return {"CANCELLED"}
+
+        assets = utils.get_all_visible_assets(context, "ALL")
+        if not assets:
+            self.report({"ERROR"}, "No assets found. Mark objects/materials as assets first.")
+            return {"CANCELLED"}
+
+        method = context.window_manager.no3d_extraction_method
+        prefs = _get_prefs_obj()
+
+        wm = context.window_manager
+        wm.progress_begin(0, len(assets))
+        exported = 0
+        all_errors: list[str] = []
+        all_warnings: list[str] = []
+
+        for i, asset in enumerate(assets):
+            wm.progress_update(i)
+            errs, warns = _run_v3_extraction(asset, self.directory, method, prefs)
+            if errs:
+                all_errors.extend(errs)
+            else:
+                exported += 1
+            all_warnings.extend(warns)
+
+        wm.progress_end()
+        label = "Method A" if method == "TEMPLATE_APPEND" else "Method B"
+        summary = f"[{label}] Exported {exported}/{len(assets)} asset(s)"
+        if all_warnings:
+            summary += f" — {len(all_warnings)} warning(s)"
+        if all_errors:
+            for e in all_errors:
+                log.error(e)
+            self.report({"WARNING"}, f"{summary} — {len(all_errors)} error(s)")
+        else:
+            self.report({"INFO"}, summary)
+        return {"FINISHED"}
+
+
+# ===================================================================
 # Dev Notes operators (Phase 3)
 # ===================================================================
 
@@ -884,6 +1039,67 @@ class NO3D_OT_clear_dev_notes(Operator):
 
 
 # ===================================================================
+# WIP Sync (auto-extract to WIP folder)
+# ===================================================================
+
+class NO3D_OT_open_wip_folder(Operator):
+    """Open a specific folder inside the WIP directory in Finder/Explorer."""
+    bl_idname = "asset.open_wip_folder_no3d"
+    bl_label = "Open WIP Folder"
+    bl_description = "Open this asset's WIP folder in the system file manager"
+    bl_options = {"REGISTER"}
+
+    folder_name: StringProperty(name="Folder Name", default="")
+
+    def execute(self, context):
+        wip = wip_sync.get_wip_folder()
+        if not wip:
+            self.report({"ERROR"}, "WIP folder not set")
+            return {"CANCELLED"}
+        target = os.path.join(wip, self.folder_name) if self.folder_name else wip
+        if not os.path.isdir(target):
+            self.report({"ERROR"}, f"Not a directory: {target}")
+            return {"CANCELLED"}
+        try:
+            system = platform.system()
+            if system == "Darwin":
+                subprocess.run(["open", target])
+            elif system == "Windows":
+                os.startfile(target)
+            else:
+                subprocess.run(["xdg-open", target])
+            return {"FINISHED"}
+        except Exception as exc:
+            self.report({"ERROR"}, f"Failed to open: {exc}")
+            return {"CANCELLED"}
+
+
+class NO3D_OT_sync_wip_all(Operator):
+    """Sync every marked asset in this file to the WIP folder."""
+    bl_idname = "asset.sync_wip_all_no3d"
+    bl_label = "Sync All Assets to WIP"
+    bl_description = (
+        "Extract every marked asset to {WIP folder}/{AssetName}/. "
+        "Always overwrites .blend and thumbnail; preserves frontmatter and notes."
+    )
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+        if not wip_sync.get_wip_folder():
+            self.report({"ERROR"}, "Set the WIP Folder in the No3D Dev N-panel first")
+            return {"CANCELLED"}
+
+        ok, fail, errors = wip_sync.sync_all()
+        if fail:
+            for e in errors:
+                log.error(e)
+            self.report({"WARNING"}, f"Synced {ok}, {fail} failed (see console)")
+        else:
+            self.report({"INFO"}, f"Synced {ok} asset(s) to WIP folder")
+        return {"FINISHED"}
+
+
+# ===================================================================
 # Registration
 # ===================================================================
 
@@ -897,6 +1113,10 @@ _classes = (
     NO3D_OT_isolate_node_group_dependency,
     NO3D_OT_remove_dependency,
     NO3D_OT_clean_all_dependencies,
+    NO3D_OT_extract_v3_active,
+    NO3D_OT_extract_v3_all,
+    NO3D_OT_open_wip_folder,
+    NO3D_OT_sync_wip_all,
     NO3D_OT_add_dev_note,
     NO3D_OT_clear_dev_notes,
 )
