@@ -4,7 +4,7 @@ bl_info = {
     "version": (3, 0, 0),
     "blender": (5, 0, 0),
     "location": "Asset Browser > Context Menu | 3D Viewport > N-Panel > No3D Dev",
-    "description": "Export clean .blend files via two pipelines: Method A (Template Append, subprocess) and Method B (Datablock Write, in-process). Frontmatter, thumbnails, dev notes.",
+    "description": "Export marked assets as clean, individual .blend files with frontmatter, thumbnails, and dev notes. WIP folder auto-sync.",
     "category": "Asset",
     "doc_url": "",
     "tracker_url": "",
@@ -22,6 +22,10 @@ from . import wip_sync
 from .notes import note_manager
 
 
+# NOTE: Method A (TEMPLATE_APPEND) is retained in code but no longer exposed in
+# the UI — Method B (DATABLOCK_WRITE) is the sole user-facing pipeline. This enum
+# is kept so the dispatcher and the console escape hatch still resolve both
+# identifiers; the picker was removed from ui.py (see _draw_extract_v3).
 EXTRACTION_METHOD_ITEMS = [
     (
         "TEMPLATE_APPEND",

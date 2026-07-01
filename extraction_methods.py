@@ -32,6 +32,11 @@ log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Method A — Template Append (subprocess)
+#
+# RETAINED BUT NOT USER-EXPOSED (as of v3.0.x): the UI picker was removed and
+# Method B is the sole exposed pipeline. This code is kept intact and remains
+# reachable through the dispatcher when `wm.no3d_extraction_method` is set to
+# 'TEMPLATE_APPEND' (e.g. from the Python console).
 # ---------------------------------------------------------------------------
 
 def method_a_template_append(

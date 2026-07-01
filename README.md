@@ -16,15 +16,18 @@ their own self-contained files, each in a named folder alongside a JSON
 metadata sidecar, a PNG thumbnail, and a description text file — ready to sync
 to a storefront or asset library.
 
-### Two export pipelines
+### Export pipeline
 
-- **Method A — Template Append (subprocess).** Opens a headless Blender on
-  `_export_template.blend`, appends the asset, strips internal markings,
-  purges orphans, and saves. Preserves Scene and METRIC/mm units. Default for
-  production output.
-- **Method B — Datablock Write (in-process).** `bpy.data.libraries.write()` of
-  the asset and its dependencies. No subprocess, no template — faster, and
-  pose-library-native. Output carries no Scene/units.
+Assets are exported via **Datablock Write** — `bpy.data.libraries.write()` of the
+asset and its transitive dependencies. No subprocess, no template file: fast, and
+pose-library-native.
+
+> **Internal / retained:** a second pipeline, **Template Append** (headless
+> Blender subprocess on `_export_template.blend` — appends the asset, strips
+> internal markings, purges orphans, preserves Scene + METRIC/mm units), is kept
+> in the code (`extraction_methods.py`, `blend_export.py`, `_export_single_asset.py`)
+> but is no longer exposed in the UI. Re-enable it from the Python console with
+> `wm.no3d_extraction_method = 'TEMPLATE_APPEND'`.
 
 ### WIP folder auto-sync
 
@@ -51,8 +54,7 @@ This is a Blender Extension. In Blender 5.0+:
    Install from Disk*.
 3. Enable **No3d Asset Developer**.
 
-Set your default export/WIP folder and extraction method in the add-on
-preferences and the N-panel.
+Set your default export/WIP folder in the add-on preferences and the N-panel.
 
 ## Export output
 

@@ -179,7 +179,7 @@ def sync_one(asset, wip_folder: str, prefs=None) -> tuple[bool, str]:
     if asset is None or not getattr(asset, "asset_data", None):
         return False, "Not an asset"
 
-    method = _wm_get("no3d_extraction_method", "TEMPLATE_APPEND")
+    method = _wm_get("no3d_extraction_method", "DATABLOCK_WRITE")
     source = bpy.data.filepath
     if method == "TEMPLATE_APPEND" and not source:
         return False, "Save the .blend first (Method A requires a saved file)"

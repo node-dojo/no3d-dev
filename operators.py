@@ -924,8 +924,7 @@ class NO3D_OT_extract_v3_active(Operator):
             self.report({"ERROR"}, "; ".join(errors))
             return {"CANCELLED"}
 
-        label = "Method A" if method == "TEMPLATE_APPEND" else "Method B"
-        msg = f"[{label}] Exported '{asset.name}'"
+        msg = f"Exported '{asset.name}'"
         if warnings:
             msg += f" — {len(warnings)} warning(s): {warnings[0]}"
         self.report({"WARNING" if warnings else "INFO"}, msg)
@@ -981,8 +980,7 @@ class NO3D_OT_extract_v3_all(Operator):
             all_warnings.extend(warns)
 
         wm.progress_end()
-        label = "Method A" if method == "TEMPLATE_APPEND" else "Method B"
-        summary = f"[{label}] Exported {exported}/{len(assets)} asset(s)"
+        summary = f"Exported {exported}/{len(assets)} asset(s)"
         if all_warnings:
             summary += f" — {len(all_warnings)} warning(s)"
         if all_errors:

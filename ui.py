@@ -176,25 +176,9 @@ def _draw_extract_v3(self, context):
     layout = self.layout
     wm = context.window_manager
 
-    box = layout.box()
-    box.label(text="Extraction Method:", icon='PRESET')
-    box.prop(wm, "no3d_extraction_method", text="")
-
-    method = wm.no3d_extraction_method
-    hint_box = layout.box()
-    if method == "TEMPLATE_APPEND":
-        hint_box.label(text="A - Template Append (subprocess)", icon='SETTINGS')
-        hint_box.label(text="- Preserves Scene + METRIC/mm units")
-        hint_box.label(text="- Strips smuggled assets")
-        hint_box.label(text="- Requires current file saved")
-    else:
-        hint_box.label(text="B - Datablock Write (in-process)", icon='SCRIPT')
-        hint_box.label(text="- libraries.write() - pose-lib native")
-        hint_box.label(text="- No Scene/units in output")
-        hint_box.label(text="- Transitive deps come along")
-
-    layout.separator()
-
+    # Extraction-method picker hidden: Method B (Datablock Write) is the sole
+    # exposed pipeline. Method A (Template Append) is retained in code and can be
+    # re-enabled via `wm.no3d_extraction_method = 'TEMPLATE_APPEND'` in the console.
     col = layout.column(align=True)
     col.scale_y = 1.3
     col.operator(
@@ -213,8 +197,6 @@ def _draw_extract_v3(self, context):
     wip_box = layout.box()
     header = wip_box.row()
     header.label(text="WIP Auto-Sync", icon='FILE_REFRESH')
-    method_label = "Method A" if method == "TEMPLATE_APPEND" else "Method B"
-    header.label(text=f"uses {method_label}")
     wip_box.prop(wm, "no3d_wip_folder", text="Folder")
 
     if not wip_sync.get_wip_folder():
