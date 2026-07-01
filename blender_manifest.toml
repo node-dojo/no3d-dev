@@ -49,6 +49,11 @@ paths = [
   "viewport_screenshot.py",
   "notes/__init__.py",
   "notes/note_manager.py",
+  "wip/__init__.py",
+  "wip/ids.py",
+  "wip/toolbox.py",
+  "wip/align.py",
+  "wip/make_spin.py",
   "LICENSE",
   "README.md",
 ]

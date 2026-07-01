@@ -32,6 +32,7 @@ from . import operators
 from . import ui
 from . import viewport_format
 from . import viewport_screenshot
+from . import wip
 from . import wip_sync
 from .notes import note_manager
 
@@ -481,11 +482,13 @@ def register():
     viewport_format.register()
     clipboard_paste.register()
     ui.register()
+    wip.register()
     wip_sync.register()
 
 
 def unregister():
     wip_sync.unregister()
+    wip.unregister()
     ui.unregister()
     clipboard_paste.unregister()
     viewport_format.unregister()
