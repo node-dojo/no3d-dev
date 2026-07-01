@@ -4,21 +4,21 @@ id = "no3d_asset_developer"
 version = "3.0.0"
 name = "No3d Asset Developer"
 tagline = "Export clean per-asset .blend files with metadata & thumbnails"
-maintainer = "Joe Bowers <joe@no3dtools.com>"
+maintainer = "Joe Bowers <joe@welltarot.com>"
 type = "add-on"
 
 website = "https://no3dtools.com"
 
 tags = ["Import-Export", "Pipeline"]
 
-blender_version_min = "4.5.0"
+blender_version_min = "5.0.0"
 
 license = [
   "SPDX:GPL-3.0-or-later",
 ]
 
 copyright = [
-  "2026 Joe Bowers",
+  "2026 The Well Tarot, LLC",
 ]
 
 # The add-on writes exported .blend/PNG/JSON/TXT files to a user-selected

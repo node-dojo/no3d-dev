@@ -5,7 +5,7 @@ A Blender add-on for turning marked assets into clean, individually-packaged
 a distributable asset library.
 
 - **Version:** 3.0.0
-- **Blender:** 4.5+
+- **Blender:** 5.0+
 - **License:** GPL-3.0-or-later
 - **Location:** Asset Browser context menu · 3D Viewport → N-Panel → *No3D Dev*
 
@@ -44,7 +44,7 @@ authoring.
 
 ## Install
 
-This is a Blender Extension. In Blender 4.5+:
+This is a Blender Extension. In Blender 5.0+:
 
 1. Download the packaged `.zip` (or build it — see below).
 2. Drag the `.zip` into Blender, or use *Edit → Preferences → Get Extensions →
@@ -97,5 +97,5 @@ files (tests, demos, planning docs) are excluded.
 
 ## License
 
-Copyright (C) 2026 Joe Bowers. Released under the GNU General Public License
-v3.0 or later. See [LICENSE](./LICENSE).
+Copyright (C) 2026 The Well Tarot, LLC. Released under the GNU General Public
+License v3.0 or later. See [LICENSE](./LICENSE).
