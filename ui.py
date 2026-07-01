@@ -11,6 +11,10 @@ import time
 import bpy
 from bpy.types import Menu, Panel
 
+from . import aspect_overlay
+from . import editor_screenshot
+from . import header_screenshots  # noqa: F401  (operators registered separately)
+from . import viewport_format
 from . import wip_sync
 from .notes import note_manager
 
@@ -168,7 +172,17 @@ class NO3D_PT_asset_cleanup_panel(Panel):
 # ---------------------------------------------------------------------------
 
 def _draw_extract_v3(self, context):
-    """Shared draw body: extraction method picker + WIP auto-sync + Recents.
+    """Shared draw body for the No3d Asset Manager v3 panel.
+
+    Layout (top → bottom):
+      1. Sync All Now button (scale_y 1.2)
+      2. Recents box (only when WIP folder is set)
+      3. WIP Auto-Sync section (folder + 3 checkboxes + status)
+      4. Extract Active Asset button (scale_y 1.3)
+      5. Extract All Assets button (scale_y 1.3)
+
+    Extraction Method dropdown is hidden — the property still exists in
+    WindowManager (read by operators / wip_sync), defaulting to Method B.
 
     Registered on multiple space types (3D Viewport, Asset Browser) so the
     same panel appears wherever you happen to be working.
@@ -176,40 +190,13 @@ def _draw_extract_v3(self, context):
     layout = self.layout
     wm = context.window_manager
 
-    # Extraction-method picker hidden: Method B (Datablock Write) is the sole
-    # exposed pipeline. Method A (Template Append) is retained in code and can be
-    # re-enabled via `wm.no3d_extraction_method = 'TEMPLATE_APPEND'` in the console.
-    col = layout.column(align=True)
-    col.scale_y = 1.3
-    col.operator(
-        "asset.extract_v3_active_no3d",
-        text="Extract Active Asset",
-        icon='EXPORT',
-    )
-    col.operator(
-        "asset.extract_v3_all_no3d",
-        text="Extract All Assets",
-        icon='PACKAGE',
-    )
+    # Extraction method is hidden from the UI — Method B (Datablock Write) is the
+    # sole exposed pipeline. Method A (Template Append) is retained in code and can
+    # be re-enabled via `wm.no3d_extraction_method = 'TEMPLATE_APPEND'` in the console.
+    wip_folder_set = bool(wip_sync.get_wip_folder())
 
-    # -- WIP Auto-Sync --
-    layout.separator()
-    wip_box = layout.box()
-    header = wip_box.row()
-    header.label(text="WIP Auto-Sync", icon='FILE_REFRESH')
-    wip_box.prop(wm, "no3d_wip_folder", text="Folder")
-
-    if not wip_sync.get_wip_folder():
-        warn = wip_box.box()
-        warn.alert = True
-        warn.label(text="Set folder to enable auto-sync", icon='ERROR')
-    else:
-        toggles = wip_box.column(align=True)
-        toggles.prop(wm, "no3d_wip_auto_mark")
-        toggles.prop(wm, "no3d_wip_auto_save")
-        toggles.prop(wm, "no3d_wip_auto_rename")
-
-    sync_row = wip_box.row()
+    # 1. Sync All Now (outside the WIP box, no header above it)
+    sync_row = layout.row()
     sync_row.scale_y = 1.2
     sync_row.operator(
         "asset.sync_wip_all_no3d",
@@ -217,14 +204,9 @@ def _draw_extract_v3(self, context):
         icon='FILE_REFRESH',
     )
 
-    status = wip_sync.get_status()
-    if status.get("msg"):
-        ago = max(0, int(time.time() - status.get("ts", 0)))
-        wip_box.label(text=f"{status['msg']} ({ago}s ago)", icon='INFO')
-
-    # -- Recents --
-    if wip_sync.get_wip_folder():
-        recents_box = wip_box.box()
+    # 2. Recents (only when a WIP folder is configured)
+    if wip_folder_set:
+        recents_box = layout.box()
         header = recents_box.row(align=True)
         header.label(text="Recents", icon='SORTTIME')
         header.prop(wm, "no3d_wip_recent_count", text="")
@@ -255,10 +237,46 @@ def _draw_extract_v3(self, context):
                 op.folder_name = name
                 row.label(text=ago_str)
 
+    # 3. WIP Auto-Sync section
+    wip_box = layout.box()
+    header = wip_box.row()
+    header.label(text="WIP Auto-Sync", icon='FILE_REFRESH')
+    wip_box.prop(wm, "no3d_wip_folder", text="Folder")
+
+    if not wip_folder_set:
+        warn = wip_box.box()
+        warn.alert = True
+        warn.label(text="Set folder to enable auto-sync", icon='ERROR')
+    else:
+        toggles = wip_box.column(align=True)
+        toggles.prop(wm, "no3d_wip_auto_mark")
+        toggles.prop(wm, "no3d_wip_auto_save")
+        toggles.prop(wm, "no3d_wip_auto_rename")
+
+        status = wip_sync.get_status()
+        if status.get("msg"):
+            ago = max(0, int(time.time() - status.get("ts", 0)))
+            wip_box.label(text=f"{status['msg']} ({ago}s ago)", icon='INFO')
+
+    # 4 + 5. Extract buttons (scale_y 1.3)
+    layout.separator()
+    col = layout.column(align=True)
+    col.scale_y = 1.3
+    col.operator(
+        "asset.extract_v3_active_no3d",
+        text="Extract Active Asset",
+        icon='EXPORT',
+    )
+    col.operator(
+        "asset.extract_v3_all_no3d",
+        text="Extract All Assets",
+        icon='PACKAGE',
+    )
+
 
 class NO3D_PT_extract_v3(Panel):
     """3D Viewport N-panel."""
-    bl_label = "Asset Extraction (v3)"
+    bl_label = "No3d Asset Manager v3"
     bl_idname = "NO3D_PT_extract_v3"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -269,7 +287,7 @@ class NO3D_PT_extract_v3(Panel):
 
 class NO3D_PT_extract_v3_assetbrowser(Panel):
     """Same panel, mounted in the Asset Browser's right TOOL_PROPS column."""
-    bl_label = "Asset Extraction (v3)"
+    bl_label = "No3d Asset Manager v3"
     bl_idname = "NO3D_PT_extract_v3_assetbrowser"
     bl_space_type = 'FILE_BROWSER'
     bl_region_type = 'TOOL_PROPS'
@@ -378,6 +396,369 @@ def draw_asset_browser_details_panel(self, context):
 
 
 # ---------------------------------------------------------------------------
+# 3D Viewport — Screenshot panel
+# ---------------------------------------------------------------------------
+
+class NO3D_PT_viewport_screenshot(Panel):
+    """Capture transparent PNGs of the 3D viewport."""
+    bl_label = "Viewport Screenshot"
+    bl_idname = "NO3D_PT_viewport_screenshot"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "No3D Dev"
+
+    def draw(self, context):
+        layout = self.layout
+        addon = context.preferences.addons.get("no3d_asset_developer")
+        prefs = addon.preferences if addon else None
+
+        col = layout.column(align=True)
+        if prefs is not None:
+            col.label(text="Output folder:")
+            col.prop(prefs, "node_screenshot_path", text="")
+            if not (prefs.node_screenshot_path or "").strip():
+                blend = bpy.data.filepath
+                fallback = (
+                    "Current .blend folder" if blend
+                    else "~/Downloads (no .blend saved)"
+                )
+                col.label(text=f"→ {fallback}", icon='INFO')
+
+        # Capture method dropdown + tradeoff hints + multiplier
+        if prefs is not None:
+            layout.separator()
+            method_box = layout.box()
+            method_box.label(text="Capture Method:", icon='RESTRICT_RENDER_OFF')
+            method_box.prop(prefs, "viewport_capture_method", text="")
+
+            method = prefs.viewport_capture_method
+
+            # Multiplier — disabled for screen-pixel-only methods
+            mult_row = method_box.row(align=True)
+            mult_row.enabled = method not in {"SCREEN_CAPTURE", "WORLD_SWAP_DIFF"}
+            mult_row.prop(prefs, "viewport_capture_resolution_multiplier", slider=True)
+
+            # Per-method tradeoff hint
+            hint = method_box.column(align=True)
+            hint.scale_y = 0.85
+            if method == "RENDER_OPENGL":
+                hint.label(text="Alpha: no   Gizmos: no   Multiplier: yes", icon='INFO')
+                hint.label(text="Sharp Solid-mode render. Default.")
+            elif method == "OFFSCREEN_SOLID":
+                hint.label(text="Alpha: yes  Gizmos: no   Multiplier: yes", icon='INFO')
+                hint.label(text="Forces Solid shading.")
+            elif method == "OFFSCREEN_MATERIAL":
+                hint.label(text="Alpha: yes  Gizmos: no   Multiplier: yes", icon='INFO')
+                hint.label(text="Uses current shading; HDRI visible.")
+                hint.label(text="Glass/transmissive may have alpha holes.")
+            elif method == "SCREEN_CAPTURE":
+                hint.label(text="Alpha: no   Gizmos: yes  Multiplier: native", icon='INFO')
+                hint.label(text="Crops the full-window screenshot.")
+            elif method == "CRYPTOMATTE_OFFSCREEN_MASK":
+                hint.label(text="Alpha: yes  Gizmos: yes  Multiplier: yes", icon='INFO')
+                hint.label(text="Two-pass: solid-white mask + screen RGB.")
+            elif method == "WORLD_SWAP_DIFF":
+                hint.label(text="Alpha: yes  Gizmos: yes  Multiplier: native", icon='INFO')
+                hint.label(text="Magenta/green diff matte.")
+                hint.label(text="Falls back if world has no 'Solid Color'.")
+
+        layout.separator()
+
+        col = layout.column(align=True)
+        col.scale_y = 1.3
+        col.operator(
+            "no3d.viewport_screenshot_visible",
+            text="Capture Visible Area",
+            icon='IMAGE_DATA',
+        )
+        col.operator(
+            "no3d.viewport_screenshot_region",
+            text="Capture Region…",
+            icon='SELECT_SET',
+        )
+        col.operator(
+            "no3d.viewport_screenshot_thumbnail",
+            text="Capture Thumbnail…",
+            icon='IMAGE_REFERENCE',
+        )
+
+        if prefs is not None:
+            layout.separator()
+            layout.prop(prefs, "viewport_screenshot_keep_gizmos")
+            row = layout.row(align=True)
+            row.label(text="Thumbnail margin:")
+            row.prop(prefs, "thumbnail_margin", text="", slider=True)
+
+        layout.separator()
+        layout.label(text="Saves PNG, copies to clipboard.", icon='INFO')
+
+
+# ---------------------------------------------------------------------------
+# 3D Viewport — Paste Clipboard as Plane
+# ---------------------------------------------------------------------------
+
+class NO3D_PT_paste_clipboard(Panel):
+    """Paste a clipboard image as a textured plane in the 3D viewport."""
+    bl_label = "Paste Clipboard as Plane"
+    bl_idname = "NO3D_PT_paste_clipboard"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "No3D Dev"
+
+    def draw(self, context):
+        layout = self.layout
+        addon = context.preferences.addons.get("no3d_asset_developer")
+        prefs = addon.preferences if addon else None
+
+        if prefs is not None:
+            row = layout.row(align=True)
+            row.label(text="Long edge:")
+            row.prop(prefs, "paste_plane_long_edge_mm", text="")
+
+        col = layout.column(align=True)
+        col.scale_y = 1.3
+        col.operator(
+            "no3d.paste_clipboard_plane",
+            text="Paste Clipboard as Plane",
+            icon='IMAGE_REFERENCE',
+        )
+        col.operator(
+            "no3d.orient_z_to_viewport",
+            text="Orient Selected Z to Viewport",
+            icon='ORIENTATION_VIEW',
+        )
+
+
+
+# ---------------------------------------------------------------------------
+# 3D Viewport — Editor (any-area) Screenshot panel
+# ---------------------------------------------------------------------------
+
+
+class NO3D_PT_editor_screenshot(Panel):
+    """Capture any single editor area as a clean PNG."""
+    bl_label = "Editor Screenshot"
+    bl_idname = "NO3D_PT_editor_screenshot"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "No3D Dev"
+
+    def draw(self, context):
+        layout = self.layout
+        addon = context.preferences.addons.get("no3d_asset_developer")
+        prefs = addon.preferences if addon else None
+
+        col = layout.column(align=True)
+        col.label(text="Pick an editor:")
+        editors = list(editor_screenshot.list_visible_editors())
+        if not editors:
+            col.label(text="No editors found", icon='ERROR')
+        else:
+            for token, label, _, _, _, _, _ in editors:
+                op = col.operator(
+                    "no3d.editor_screenshot",
+                    text=label,
+                    icon='WINDOW',
+                )
+                op.area_token = token
+
+        layout.separator()
+
+        if prefs is not None:
+            box = layout.box()
+            box.prop(prefs, "editor_capture_round_corners")
+            row = box.row()
+            row.enabled = prefs.editor_capture_round_corners
+            row.prop(prefs, "editor_capture_corner_radius", slider=True)
+
+        layout.separator()
+        layout.label(text="Saves PNG, copies to clipboard.", icon='INFO')
+
+
+# ---------------------------------------------------------------------------
+# 3D Viewport — Match-to-Preset panel
+# ---------------------------------------------------------------------------
+
+
+def _gcd(a, b):
+    while b:
+        a, b = b, a % b
+    return max(1, a)
+
+
+class NO3D_PT_viewport_format(Panel):
+    """Resize the Blender window to a content-format aspect ratio."""
+    bl_label = "Viewport Format"
+    bl_idname = "NO3D_PT_viewport_format"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "No3D Dev"
+
+    def draw(self, context):
+        layout = self.layout
+        win = context.window
+        screen = win.screen
+
+        # Show the active 3D viewport's current dims + aspect
+        area = context.area if context.area and context.area.type == 'VIEW_3D' else None
+        if area is None:
+            v3ds = [a for a in screen.areas if a.type == 'VIEW_3D']
+            v3ds.sort(key=lambda a: a.width * a.height, reverse=True)
+            area = v3ds[0] if v3ds else None
+
+        info = layout.box()
+        if area is not None:
+            cur_w = int(area.width)
+            cur_h = int(area.height)
+            g = _gcd(cur_w, cur_h)
+            info.label(text="Active viewport size:", icon='WINDOW')
+            info.label(text=f"  {cur_w} x {cur_h}  ({cur_w // g}:{cur_h // g})")
+        else:
+            info.label(text="No 3D viewport in this workspace", icon='ERROR')
+
+        layout.separator()
+        col = layout.column(align=True)
+        col.scale_y = 1.2
+        col.label(text="Reshape viewport to aspect:")
+        for key, label, _desc, _aw, _ah in viewport_format.PRESETS:
+            op = col.operator(
+                "no3d.apply_viewport_preset",
+                text=label,
+                icon='OUTPUT',
+            )
+            op.preset = key
+
+        layout.separator()
+        sub = layout.column(align=True)
+        sub.scale_y = 0.85
+        sub.label(text="Reshapes one 3D viewport area in place.", icon='INFO')
+        sub.label(text="Neighbors absorb the change. Window stays put.")
+
+
+# ---------------------------------------------------------------------------
+# 3D Viewport — Aspect Overlay panel
+# ---------------------------------------------------------------------------
+
+
+class NO3D_PT_aspect_overlay(Panel):
+    """Toggle and configure the screen-space aspect-ratio overlay."""
+    bl_label = "Aspect Overlay"
+    bl_idname = "NO3D_PT_aspect_overlay"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "No3D Dev"
+
+    def draw(self, context):
+        aspect_overlay.draw_aspect_overlay_section(self.layout, context)
+
+
+# ---------------------------------------------------------------------------
+# Node Editor — Screenshot panel
+# ---------------------------------------------------------------------------
+
+class NO3D_PT_node_screenshot(Panel):
+    """Capture transparent PNGs of the node editor."""
+    bl_label = "Node Screenshot"
+    bl_idname = "NO3D_PT_node_screenshot"
+    bl_space_type = 'NODE_EDITOR'
+    bl_region_type = 'UI'
+    bl_category = "No3D Dev"
+
+    def draw(self, context):
+        layout = self.layout
+        addon = context.preferences.addons.get("no3d_asset_developer")
+        prefs = addon.preferences if addon else None
+
+        col = layout.column(align=True)
+        if prefs is not None:
+            col.label(text="Output folder:")
+            col.prop(prefs, "node_screenshot_path", text="")
+            if not (prefs.node_screenshot_path or "").strip():
+                blend = bpy.data.filepath
+                fallback = (
+                    "Current .blend folder" if blend
+                    else "~/Downloads (no .blend saved)"
+                )
+                col.label(text=f"→ {fallback}", icon='INFO')
+
+        layout.separator()
+
+        col = layout.column(align=True)
+        col.scale_y = 1.3
+        col.operator(
+            "no3d.node_screenshot_visible",
+            text="Capture Visible Area",
+            icon='IMAGE_DATA',
+        )
+        col.operator(
+            "no3d.node_screenshot_region",
+            text="Capture Region…",
+            icon='SELECT_SET',
+        )
+        col.operator(
+            "no3d.node_screenshot_thumbnail",
+            text="Capture Thumbnail…",
+            icon='IMAGE_REFERENCE',
+        )
+
+        if prefs is not None:
+            layout.separator()
+            row = layout.row(align=True)
+            row.label(text="Thumbnail margin:")
+            row.prop(prefs, "thumbnail_margin", text="", slider=True)
+
+        layout.separator()
+        layout.label(text="Saves transparent PNG, copies to clipboard.", icon='INFO')
+
+
+# ---------------------------------------------------------------------------
+# Header screenshot buttons — appended to editor header types
+# ---------------------------------------------------------------------------
+
+def draw_view3d_header_screenshot(self, context):
+    layout = self.layout
+    # N-panel button first (left of the area-screenshot button).
+    layout.operator("no3d.viewport_npanel_screenshot", text="", icon='EVENT_N')
+    layout.operator("no3d.header_area_screenshot", text="", icon='CAMERA_DATA')
+
+
+def draw_outliner_header_screenshot(self, context):
+    layout = self.layout
+    layout.operator("no3d.header_area_screenshot", text="", icon='CAMERA_DATA')
+
+
+def draw_properties_header_screenshot(self, context):
+    layout = self.layout
+    layout.operator("no3d.header_area_screenshot", text="", icon='CAMERA_DATA')
+
+
+def draw_file_header_screenshot(self, context):
+    layout = self.layout
+    layout.operator("no3d.header_area_screenshot", text="", icon='CAMERA_DATA')
+
+
+def draw_node_header_screenshot(self, context):
+    layout = self.layout
+    layout.operator("no3d.header_area_screenshot", text="", icon='CAMERA_DATA')
+
+
+# (header_type_name, draw_function) pairs — appended on register, removed on
+# unregister. Each is wrapped in try/except so a missing class doesn't take
+# down the whole registration.
+_HEADER_APPENDS = (
+    ("VIEW3D_HT_header", draw_view3d_header_screenshot),
+    ("OUTLINER_HT_header", draw_outliner_header_screenshot),
+    ("PROPERTIES_HT_header", draw_properties_header_screenshot),
+    ("FILE_HT_header", draw_file_header_screenshot),
+    ("NODE_HT_header", draw_node_header_screenshot),
+)
+
+# Names of header types that successfully had their draw fn appended — used
+# at unregister time so we only attempt to remove what we actually added.
+_appended_headers = []
+
+
+# ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
 
@@ -387,6 +768,12 @@ _classes = (
     NO3D_PT_extract_v3,
     NO3D_PT_extract_v3_assetbrowser,
     NO3D_PT_dev_notes,
+    NO3D_PT_node_screenshot,
+    NO3D_PT_viewport_screenshot,
+    NO3D_PT_editor_screenshot,
+    # NO3D_PT_viewport_format intentionally disabled — class kept for re-enable.
+    NO3D_PT_aspect_overlay,
+    NO3D_PT_paste_clipboard,
 )
 
 # Menu types to try for context menu appending (varies by Blender version)
@@ -437,9 +824,33 @@ def register():
     else:
         log.warning("Could not find Asset Browser details panel to append to")
 
+    # Append screenshot buttons to editor headers. Each append is isolated so
+    # a single missing header class doesn't take down the rest.
+    _appended_headers.clear()
+    for header_name, draw_fn in _HEADER_APPENDS:
+        header_cls = getattr(bpy.types, header_name, None)
+        if header_cls is None:
+            log.warning("Header type %s not found — skipping screenshot button", header_name)
+            continue
+        try:
+            header_cls.append(draw_fn)
+            _appended_headers.append((header_name, draw_fn))
+        except Exception as exc:
+            log.warning("Could not append screenshot button to %s: %s", header_name, exc)
+
 
 def unregister():
     global _appended_context_menu, _appended_details_panel
+
+    # Remove header screenshot button appends
+    for header_name, draw_fn in list(_appended_headers):
+        header_cls = getattr(bpy.types, header_name, None)
+        if header_cls is not None:
+            try:
+                header_cls.remove(draw_fn)
+            except ValueError:
+                pass
+    _appended_headers.clear()
 
     # Remove context menu append
     if _appended_context_menu:
