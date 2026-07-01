@@ -733,8 +733,17 @@ def draw_properties_header_screenshot(self, context):
 
 
 def draw_file_header_screenshot(self, context):
-    layout = self.layout
-    layout.operator("no3d.header_area_screenshot", text="", icon='CAMERA_DATA')
+    # FILEBROWSER_HT_header serves the File Browser, the Asset Browser, AND
+    # transient file-select popups, and it draws in more than one region.
+    # Only draw the button in the main header region, and skip the temporary
+    # file-select dialogs (those have no persistent area worth capturing).
+    region = getattr(context, "region", None)
+    if region is not None and region.type != 'HEADER':
+        return
+    area = getattr(context, "area", None)
+    if area is None or area.type != 'FILE_BROWSER':
+        return
+    self.layout.operator("no3d.header_area_screenshot", text="", icon='CAMERA_DATA')
 
 
 def draw_node_header_screenshot(self, context):
@@ -749,7 +758,10 @@ _HEADER_APPENDS = (
     ("VIEW3D_HT_header", draw_view3d_header_screenshot),
     ("OUTLINER_HT_header", draw_outliner_header_screenshot),
     ("PROPERTIES_HT_header", draw_properties_header_screenshot),
-    ("FILE_HT_header", draw_file_header_screenshot),
+    # Blender 5.x renamed the file/asset browser header to FILEBROWSER_HT_header
+    # (the old FILE_HT_header no longer exists). This single header serves both
+    # the File Browser and the Asset Browser, so one entry covers both.
+    ("FILEBROWSER_HT_header", draw_file_header_screenshot),
     ("NODE_HT_header", draw_node_header_screenshot),
 )
 
