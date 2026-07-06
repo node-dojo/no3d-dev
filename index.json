@@ -1,0 +1,33 @@
+{
+  "version": "v1",
+  "blocklist": [],
+  "data": [
+    {
+      "schema_version": "1.0.0",
+      "id": "no3d_asset_developer",
+      "name": "No3d Asset Developer",
+      "tagline": "Export clean per-asset .blend files with metadata & thumbnails",
+      "version": "3.1.0",
+      "type": "add-on",
+      "maintainer": "Joe Bowers <joe@welltarot.com>",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "5.0.0",
+      "website": "https://no3dtools.com",
+      "copyright": [
+        "2026 The Well Tarot, LLC"
+      ],
+      "permissions": {
+        "files": "Export asset .blend files, thumbnails, and metadata to disk"
+      },
+      "tags": [
+        "Import-Export",
+        "Pipeline"
+      ],
+      "archive_url": "./no3d_asset_developer-3.1.0.zip",
+      "archive_size": 189256,
+      "archive_hash": "sha256:83e638c2216412fa3a697ca244379650b8044ac0561eaafff7380bb151c82034"
+    }
+  ]
+}
