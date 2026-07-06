@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "no3d_asset_developer"
-version = "3.0.0"
+version = "3.1.0"
 name = "No3d Asset Developer"
 tagline = "Export clean per-asset .blend files with metadata & thumbnails"
 maintainer = "Joe Bowers <joe@welltarot.com>"
@@ -42,6 +42,7 @@ paths = [
   "_export_template.blend",
   "aspect_overlay.py",
   "clipboard_paste.py",
+  "repo_registration.py",
   "editor_screenshot.py",
   "header_screenshots.py",
   "node_screenshot.py",

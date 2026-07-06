@@ -25,6 +25,7 @@ from bpy.props import (
 )
 from . import aspect_overlay
 from . import clipboard_paste
+from . import repo_registration
 from . import editor_screenshot
 from . import header_screenshots
 from . import node_screenshot
@@ -500,9 +501,11 @@ def register():
     ui.register()
     wip.register()
     wip_sync.register()
+    repo_registration.register()
 
 
 def unregister():
+    repo_registration.unregister()
     wip_sync.unregister()
     wip.unregister()
     ui.unregister()
