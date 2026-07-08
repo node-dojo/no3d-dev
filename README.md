@@ -97,6 +97,24 @@ files (tests, demos, planning docs) are excluded.
 - `utils.py` — metadata, thumbnails, JSON generation
 - `notes/` — dev notes system
 
+## Bundled tools
+
+Beyond asset export, this add-on bundles two macOS workflow tools:
+
+### Save & Reload
+`File → Save and Reload` (or **Cmd+Shift+R** in the 3D View) saves the current
+`.blend` as the next iteration (`.001`, `.002`, …) then quits and relaunches
+this Blender instance with the saved file. Other running Blender instances are
+untouched. Configure the save folder, iteration padding, and a confirm-prompt in
+the add-on preferences. macOS only.
+
+### Claude Pair
+The **"Claude"** tab in the 3D-viewport N-panel pairs this Blender instance with
+a Claude Code terminal session over the official Blender MCP add-on. "Pair Now"
+opens an iTerm2 window bound to a free MCP port; "Re-pair & Resume" re-attaches
+the prior conversation after a restart. Requires the official Blender MCP add-on
+installed separately. macOS / iTerm2 only.
+
 ## License
 
 Copyright (C) 2026 The Well Tarot, LLC. Released under the GNU General Public
