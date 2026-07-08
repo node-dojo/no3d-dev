@@ -148,3 +148,33 @@ Non-negotiables) and remove it from this list.
   bare-harness context — read them from `<PrefsClass>.bl_rna.properties`.
 - Headless Blender with the user's normal add-ons enabled often hangs — always
   `--factory-startup` in scripts, and register only what the harness needs.
+- **`publish_repo.sh` keeps prior version zips → the remote index serves
+  overlapping-range duplicates (both have `blender_version_min=5.0.0`,
+  `blender_version_max=null`) → Blender's resolver installs the FIRST listed,
+  i.e. the OLDER version.** Symptom: "update from remote" pulls an old version
+  even though a newer one is published. Fix used 2026-07-08: `rm` the stale zip
+  from `~/.no3d-extension-repo/`, re-run `extension server-generate`, force-push
+  `gh-pages`. The pipeline (`ship.sh`) must PRUNE old zips (or pin
+  `blender_version_max`) so the repo serves exactly one current build per
+  Blender-version band. This is a top-priority `ship.sh` requirement.
+- **Merged add-on vs. still-installed standalone add-ons COLLIDE.** After
+  merging Claude Pair + Save & Reload into the add-on, the standalone
+  `claude_pair` and `save_and_reload` extensions were still enabled and
+  register the SAME `bl_idname`s (`claude_pair.pair_now`, `save_and_reload.run`,
+  the `CLAUDE_PAIR_PT_panel`, etc.). Blender does last-registered-wins, but
+  running both is genuinely conflicting, and the standalone's now-dropped
+  operators (`CLAUDE_PAIR_OT_reload`/`_uninstall`) linger on `bpy.types` as
+  ghosts. Disabling a standalone LIVE (mid-session) after the merged copy
+  re-registered over it throws `unregister_class(...): missing bl_rna attribute`
+  (its classes were already yanked out from under it) — messy but non-fatal.
+  **Migration rule:** disable/uninstall the standalones BEFORE (or instead of)
+  enabling the merged add-on, then RESTART Blender to clear ghost registrations.
+  Never rely on live disable to fully clean up. A future `ship.sh`/migration
+  helper should detect and warn about enabled standalones.
+- Disabling standalone Claude Pair mid-session tears down the MCP server it
+  runs (the port that hosts the paired Claude session). Do it at a restart, not
+  live, unless you intend to orphan the current session.
+- `bpy.context.preferences.use_preferences_save` is often OFF here — enablement
+  changes made via `addon_disable`/`addon_enable` do NOT persist across restart
+  unless you explicitly `bpy.ops.wm.save_userpref()`. Always save after a
+  migration you need to survive a restart.
