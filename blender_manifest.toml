@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "no3d_asset_developer"
-version = "3.1.0"
+version = "3.2.0"
 name = "No3d Asset Developer"
 tagline = "Export clean per-asset .blend files with metadata & thumbnails"
 maintainer = "Joe Bowers <joe@welltarot.com>"
@@ -26,6 +26,7 @@ copyright = [
 # (Method A) export pipeline.
 [permissions]
 files = "Export asset .blend files, thumbnails, and metadata to disk"
+network = "Starts the official Blender MCP bridge server on localhost"
 
 # Only ship what the add-on needs at runtime. Dev-only files (tests, demos,
 # planning docs, node dumps, marketing art) are intentionally excluded.
@@ -55,6 +56,12 @@ paths = [
   "wip/toolbox.py",
   "wip/align.py",
   "wip/make_spin.py",
+  "claude_pair/__init__.py",
+  "claude_pair/pair.py",
+  "claude_pair/registry.py",
+  "save_reload/__init__.py",
+  "save_reload/save_op.py",
+  "save_reload/helper.py",
   "LICENSE",
   "README.md",
 ]
