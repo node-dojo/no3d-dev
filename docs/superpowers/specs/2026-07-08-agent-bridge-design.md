@@ -60,10 +60,10 @@ Agent Bridge **is `blmcp` with a smarter address book**, delivered as a thin ada
 
 ### Coupling strategy — pin + monkeypatch + smoke test (DECIDED; overridable)
 
-- **Do not vendor/fork** `blmcp` source. Depend on a **pinned** `blmcp` version.
-- **Monkeypatch** the resolver seam at import time — Agent Bridge is ~50 lines of its own code, not a copy of theirs.
-- Ship a **smoke test** that asserts the patched symbols (`get_connection_params` / `send_code`) still exist and have the expected signature, so an upstream rename fails **loudly** at test time, not silently at runtime.
-- Upgrade `blmcp` **deliberately**, on our schedule; new tools + protocol fixes come for free when we bump the pin.
+- **Do not vendor/fork** `blmcp` source. Depend on a **pinned** upstream. Note: the package is distributed as `blender-mcp==1.0.0` installed **from git** (`projects.blender.org/lab/blender_mcp`, subdirectory `mcp`), not a PyPI semver — so the pin is a **git ref/commit**, recorded in Agent Bridge's dependency spec.
+- **Monkeypatch exactly one function:** `blmcp.tools_helpers.connection.get_connection_params`. This is the correct seam because **17 of the tools do `from blmcp.tools_helpers.connection import send_code` (name-bound at import)** — patching `send_code` after import would NOT affect them. But `send_code` calls `get_connection_params()` **unqualified within its own module** (`connection.py:44`), resolved at call time, so replacing `connection.get_connection_params` lands for every tool. Agent Bridge is ~50 lines of its own code, not a copy of theirs.
+- Ship a **smoke test** that asserts `get_connection_params` still exists with the expected 0-arg → `(host, port)` signature, and that `send_code` still resolves it unqualified (i.e. our patch still lands), so an upstream rename/refactor fails **loudly** at test time, not silently at runtime.
+- Upgrade the git pin **deliberately**, on our schedule; new tools + protocol fixes come for free when we bump it.
 
 Rejected alternatives:
 - **Wrap-the-server (W1):** re-declare 30 tool schemas + babysit a child process. Brittle, breaks on any tool-set change.
@@ -171,7 +171,7 @@ use_instance(target: str, pid: int | None = None) -> str
 ## 11. Testing strategy
 
 - **Unit (resolver):** table-driven over registry states — 0/1/N live matches, stale PID present, extension/case variations, pid tiebreak. No Blender needed (registry is just JSON on disk).
-- **Smoke (coupling):** assert `blmcp.tools_helpers.connection.get_connection_params` and `send_code` exist with expected signatures against the pinned version.
+- **Smoke (coupling):** assert `blmcp.tools_helpers.connection.get_connection_params` exists (0-arg → `(host, port)`), that `send_code` exists, and that patching `get_connection_params` is observed by a `send_code` call (patch-lands check) against the pinned git ref.
 - **Integration (manual/scripted):** two Blenders open on distinct ports; one agent; `list_instances` → `use_instance(A)` → call → `use_instance(B)` → call; verify each call hit the right instance (assert via a marker object created per-instance).
 - **Regression:** with a single Blender and no `use_instance` call, behavior matches plain `blmcp` (default-target path).
 
