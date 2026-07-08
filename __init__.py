@@ -24,6 +24,8 @@ from bpy.props import (
     StringProperty,
 )
 from . import aspect_overlay
+from . import claude_pair
+from . import save_reload
 from . import clipboard_paste
 from . import repo_registration
 from . import editor_screenshot
@@ -285,6 +287,98 @@ class NO3D_AddonPreferences(AddonPreferences):
         default=True,
     )
 
+    # ----- Save & Reload (folded from the standalone add-on) -----
+    save_folder: StringProperty(
+        name="Save folder",
+        description=(
+            "Folder to save iteration .blend files into. "
+            "Leave blank to save next to the current .blend file."
+        ),
+        default="",
+        subtype="DIR_PATH",
+    )
+    iteration_digits: IntProperty(
+        name="Iteration digits",
+        description="Zero-padding width for the iteration suffix (e.g. 3 -> .001)",
+        default=3, min=2, max=6,
+    )
+    confirm_before_restart: BoolProperty(
+        name="Confirm before restart",
+        description="Show a confirmation popup before saving and relaunching Blender",
+        default=False,
+    )
+
+    # ----- Claude Pair (folded from the standalone add-on) -----
+    scratch_dir: StringProperty(
+        name="Scratch directory",
+        description="Working directory used when the blend file has not been saved",
+        default=str(os.path.join(os.path.expanduser("~"), "Desktop")),
+        subtype="DIR_PATH",
+    )
+    claude_command: StringProperty(
+        name="Claude command",
+        description="Shell command to launch Claude Code in the paired terminal",
+        default="claude",
+    )
+    claude_extra_args: StringProperty(
+        name="Extra args",
+        description="Additional arguments appended to the claude command (e.g. --model opus)",
+        default="",
+    )
+    claude_auto_start: BoolProperty(
+        name="Auto-start Claude",
+        description="Run claude immediately in the spawned terminal. Disable to leave a plain shell open.",
+        default=True,
+    )
+    auto_write_permissions: BoolProperty(
+        name="Drop project permissions on pair",
+        description="Write .claude/settings.local.json into the pair's cwd when pairing (only if absent)",
+        default=True,
+    )
+    mcp_host: StringProperty(
+        name="MCP host",
+        description="Host the official MCP add-on binds to. localhost is correct in nearly all cases.",
+        default="localhost",
+    )
+    port_range_start: IntProperty(
+        name="Port range start",
+        description="First port to try when scanning for a free port",
+        default=9876, min=1024, max=65535,
+    )
+    port_range_end: IntProperty(
+        name="Port range end",
+        description="Last port to try when scanning for a free port",
+        default=9999, min=1024, max=65535,
+    )
+    start_server_on_load: BoolProperty(
+        name="Start MCP server on Blender startup",
+        description=(
+            "Automatically start the official MCP server after Blender loads a .blend "
+            "file. Useful when paired with 'Re-pair & Resume' — the server is up before "
+            "the user re-attaches Claude."
+        ),
+        default=False,
+    )
+    iterm_open_as: EnumProperty(
+        name="Open as",
+        description="Spawn a new iTerm2 window or a new tab in the front window",
+        items=[
+            ("WINDOW", "New window", "Open a fresh iTerm2 window"),
+            ("TAB", "New tab", "Open a tab in the front iTerm2 window (falls back to window)"),
+        ],
+        default="WINDOW",
+    )
+    iterm_profile: StringProperty(
+        name="iTerm2 profile",
+        description="iTerm2 profile name to use. Leave blank for the default profile.",
+        default="",
+    )
+    verbose_logging: BoolProperty(
+        name="Verbose logging",
+        description="Print pair lifecycle events to the system console",
+        default=False,
+    )
+
     def draw(self, context):
         layout = self.layout
 
@@ -350,6 +444,37 @@ class NO3D_AddonPreferences(AddonPreferences):
         box = layout.box()
         box.label(text="Paste Clipboard as Plane", icon='IMAGE_REFERENCE')
         box.prop(self, "paste_plane_long_edge_mm")
+
+        layout.separator()
+
+        # Save & Reload
+        box = layout.box()
+        box.label(text="Save & Reload", icon="FILE_REFRESH")
+        box.prop(self, "save_folder")
+        box.prop(self, "iteration_digits")
+        box.prop(self, "confirm_before_restart")
+        box.label(text="Shortcut: Cmd+Shift+R (3D View). macOS only.", icon="INFO")
+
+        layout.separator()
+
+        # Claude Pair
+        box = layout.box()
+        box.label(text="Claude Pair", icon="LINKED")
+        box.prop(self, "scratch_dir")
+        box.prop(self, "claude_command")
+        box.prop(self, "claude_extra_args")
+        box.prop(self, "claude_auto_start")
+        box.prop(self, "auto_write_permissions")
+        row = box.row(align=True)
+        row.prop(self, "mcp_host")
+        sub = box.row(align=True)
+        sub.prop(self, "port_range_start")
+        sub.prop(self, "port_range_end")
+        box.prop(self, "start_server_on_load")
+        box.prop(self, "iterm_open_as")
+        box.prop(self, "iterm_profile")
+        box.prop(self, "verbose_logging")
+        box.label(text="Requires the official Blender MCP add-on. macOS/iTerm2 only.", icon="INFO")
 
         layout.separator()
 
@@ -502,9 +627,13 @@ def register():
     wip.register()
     wip_sync.register()
     repo_registration.register()
+    save_reload.register()
+    claude_pair.register()
 
 
 def unregister():
+    claude_pair.unregister()
+    save_reload.unregister()
     repo_registration.unregister()
     wip_sync.unregister()
     wip.unregister()
