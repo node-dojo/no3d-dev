@@ -7,6 +7,61 @@
       "id": "no3d_asset_developer",
       "name": "No3d Asset Developer",
       "tagline": "Export clean per-asset .blend files with metadata & thumbnails",
+      "version": "4.0.0",
+      "type": "add-on",
+      "maintainer": "Joe Bowers <joe@welltarot.com>",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "5.0.0",
+      "website": "https://no3dtools.com",
+      "copyright": [
+        "2026 The Well Tarot, LLC"
+      ],
+      "permissions": {
+        "files": "Export asset .blend files, thumbnails, and metadata to disk",
+        "network": "Starts the official Blender MCP bridge server on localhost"
+      },
+      "tags": [
+        "Import-Export",
+        "Pipeline"
+      ],
+      "archive_url": "./no3d_asset_developer-4.0.0.zip",
+      "archive_size": 196874,
+      "archive_hash": "sha256:622af715bd9b58d70cde5bd3f7bec5c76b81008b008e82482753d0bf9ba08bab"
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "no3d_asset_developer",
+      "name": "No3d Asset Developer",
+      "tagline": "Export clean per-asset .blend files with metadata & thumbnails",
+      "version": "3.1.0",
+      "type": "add-on",
+      "maintainer": "Joe Bowers <joe@welltarot.com>",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "5.0.0",
+      "website": "https://no3dtools.com",
+      "copyright": [
+        "2026 The Well Tarot, LLC"
+      ],
+      "permissions": {
+        "files": "Export asset .blend files, thumbnails, and metadata to disk"
+      },
+      "tags": [
+        "Import-Export",
+        "Pipeline"
+      ],
+      "archive_url": "./no3d_asset_developer-3.1.0.zip",
+      "archive_size": 189258,
+      "archive_hash": "sha256:cd9390d832903cef7a759954ef1ceb683dbd2deae1a2be5f4ac616d02a60d678"
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "no3d_asset_developer",
+      "name": "No3d Asset Developer",
+      "tagline": "Export clean per-asset .blend files with metadata & thumbnails",
       "version": "3.2.0",
       "type": "add-on",
       "maintainer": "Joe Bowers <joe@welltarot.com>",
