@@ -1,7 +1,7 @@
 bl_info = {
     "name": "No3d Asset Developer",
     "author": "NO3D Tools",
-    "version": (4, 0, 0),
+    "version": (4, 0, 1),
     "blender": (5, 0, 0),
     "location": "Asset Browser > Context Menu | 3D Viewport > N-Panel > No3D Dev",
     "description": "Export marked assets as clean, individual .blend files with frontmatter, thumbnails, and dev notes. WIP folder auto-sync.",
@@ -537,18 +537,49 @@ def _draw_addon_keymap_items(layout, context):
 
 
 def _on_wip_folder_changed(self, context):
-    """When the user picks a WIP folder in the N-panel, persist it to prefs."""
+    """When the user picks a WIP folder in the N-panel, persist it to prefs.
+
+    Writes the value into addon preferences AND saves userpref.blend
+    immediately. Without the explicit save, a programmatic pref write only
+    survives if "Auto-Save Preferences" flushes it on a clean exit — which is
+    exactly how the WIP folder kept evaporating between sessions. No-ops when
+    the value is unchanged (e.g. the lazy seed below), so prefs are only
+    written on genuine user input.
+    """
     addon = context.preferences.addons.get(__name__)
-    if addon and hasattr(addon, "preferences"):
-        addon.preferences.export_library_path = self.no3d_wip_folder
+    if not (addon and hasattr(addon, "preferences")):
+        return
+    prefs = addon.preferences
+    if prefs.export_library_path == self.no3d_wip_folder:
+        return
+    prefs.export_library_path = self.no3d_wip_folder
+    try:
+        bpy.ops.wm.save_userpref()
+    except Exception:
+        # Headless / restricted contexts: value is still set for this session;
+        # persistence will catch up on the next interactive save.
+        pass
 
 
-def _default_wip_folder():
-    """Seed the WM prop from addon preferences on register."""
+def _seed_wip_folder_from_prefs():
+    """One-shot timer: seed the WM prop from saved prefs once context is live.
+
+    Register-time seeding (a baked StringProperty default) is unreliable —
+    bpy.context is restricted while the addon registers, so the default came
+    up empty and the panel looked reset every launch. A timer runs after
+    startup with full context. Only fills an EMPTY WM prop; never overwrites
+    a value the user set this session.
+    """
+    wm = getattr(bpy.context, "window_manager", None)
+    if wm is None:
+        return 0.2  # context not ready yet, retry shortly
     addon = bpy.context.preferences.addons.get(__name__)
+    saved = ""
     if addon and hasattr(addon, "preferences"):
-        return addon.preferences.export_library_path or ""
-    return ""
+        saved = addon.preferences.export_library_path or ""
+    if saved and not wm.no3d_wip_folder:
+        wm.no3d_wip_folder = saved  # update callback no-ops (same value)
+    return None
 
 
 def _register_wm_props():
@@ -565,7 +596,7 @@ def _register_wm_props():
             "Each asset gets its own subfolder. Saved back to addon preferences."
         ),
         subtype="DIR_PATH",
-        default=_default_wip_folder(),
+        default="",  # seeded from prefs by _seed_wip_folder_from_prefs
         update=_on_wip_folder_changed,
     )
     bpy.types.WindowManager.no3d_wip_auto_mark = BoolProperty(
@@ -615,6 +646,7 @@ def register():
     aspect_overlay.register()
     bpy.utils.register_class(NO3D_AddonPreferences)
     _register_wm_props()
+    bpy.app.timers.register(_seed_wip_folder_from_prefs, first_interval=0.0)
     note_manager.register()
     operators.register()
     node_screenshot.register()
@@ -646,6 +678,8 @@ def unregister():
     node_screenshot.unregister()
     operators.unregister()
     note_manager.unregister()
+    if bpy.app.timers.is_registered(_seed_wip_folder_from_prefs):
+        bpy.app.timers.unregister(_seed_wip_folder_from_prefs)
     _unregister_wm_props()
     bpy.utils.unregister_class(NO3D_AddonPreferences)
     # aspect_overlay last: prefs (which referenced its PropertyGroup) is
