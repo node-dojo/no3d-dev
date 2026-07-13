@@ -1,0 +1,32 @@
+schema_version = "1.0.0"
+
+id = "no3d_camera_utilities"
+version = "1.0.0"
+name = "No3d Camera Utilities"
+tagline = "2D/3D mesh camera tools, framing plane, and render utilities"
+maintainer = "Joe Bowers <joe@welltarot.com>"
+type = "add-on"
+
+website = "https://no3dtools.com"
+
+tags = ["3D View", "Render"]
+
+blender_version_min = "4.2.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+
+copyright = [
+  "2026 The Well Tarot, LLC",
+]
+
+# The add-on renders images to disk (mesh camera renders, optional Obsidian
+# copies) and reads user-selected output paths.
+[permissions]
+files = "Renders mesh-camera images to user-selected output paths and (optionally) copies them to a configured Obsidian assets folder"
+
+[build]
+paths = [
+  "__init__.py",
+]
