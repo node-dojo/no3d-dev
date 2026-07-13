@@ -141,15 +141,55 @@ task report and update the spec afterward.
   filesystem connector; fall back to "Control Your Mac" / Desktop Commander
   per the user's stated preference.
 
-## Ship pipeline (design in progress)
+## Vendoring: sub-extensions sourced from external repos
 
-`docs/superpowers/specs/2026-07-08-ship-pipeline-design.md` describes the
-deterministic `tools/ship.sh` spine. Not built yet. Post-monorepo, it grows
-a per-extension argument: `ship.sh <extension_id> <version> [--notes …]`.
-Preflight checks the target extension's manifest ↔ bl_info agreement; bumps
-its two version fields; runs `build_all.sh`; runs `publish_repo.sh`; commits
-+ tags + pushes; appends to the vault ship log. Gumroad publishing is parked
-per Joe's decision — `ship.sh` lands with `--no-gumroad` as default.
+Some sub-extensions have an **external repo as their source of truth** — code
+is authored there, the copy in `extensions/<name>/` is a mirror. Vendored
+extensions are declared in `vendor.toml` at the repo root:
+
+```toml
+[no3d_camera_utilities]
+source = "https://github.com/node-dojo/no3d-camera-utilities.git"
+ref = "main"
+subdir = "no3d_camera_utilities"
+```
+
+**Rules:**
+
+- **Do NOT edit the code of a vendored extension in this repo.** Edits happen
+  in the source repo; `tools/vendor_sync.sh <name>` pulls them here.
+- **Local-only files (like `blender_manifest.toml`) are preserved by sync.**
+  Vendor sync uses rsync without `--delete`, so a locally-authored manifest
+  survives even if the upstream doesn't ship one.
+- **Version discipline** for a vendored extension: the local
+  `blender_manifest.toml` version is authoritative for what's served by the
+  extension repo. `bl_info` in the upstream `__init__.py` is informational;
+  drift between them is OK but should be resolved when the upstream cuts a
+  release.
+- **`.vendor_last_sync`** sentinel file records the last-synced upstream
+  commit; committed to git for reviewability.
+
+Currently vendored: `no3d_camera_utilities` ← `github.com/node-dojo/no3d-camera-utilities`.
+
+## Ship pipeline
+
+`tools/ship.sh <extension_id> <version> [--notes "..."] [--sync-vendor] [--dry-run]`
+is the deterministic ship spine. Runs preflight (clean tree, on main,
+harness passes), optionally syncs upstream for vendored extensions, bumps
+manifest + bl_info, builds every extension, **prunes old-version zips from
+`dist/` and the scratch repo dir (keeps only the current version per
+extension)**, force-pushes gh-pages, commits + tags + pushes main, appends
+to `$VAULT_001/PROJECTS/no3d tools/ship-log.md` if the env var is set.
+
+**Typical shipping flow:**
+
+- Authored-in-place extension: `tools/ship.sh no3d_asset_developer 4.0.2 --notes "..."`
+- Vendored extension: bump version in the upstream repo → commit + push
+  upstream → in No3d Dev, `tools/ship.sh no3d_camera_utilities 1.0.1 --sync-vendor --notes "..."`
+
+Design context: `docs/superpowers/specs/2026-07-08-ship-pipeline-design.md`
+(pre-monorepo shape; ship.sh as built already reflects the monorepo shape).
+Gumroad publishing is intentionally parked; add later with a `--gumroad` flag.
 
 Session logs live in the vault, not the repo:
 `$VAULT_001/PROJECTS/no3d tools/ship-log.md`. Absolute dates only.
@@ -174,7 +214,10 @@ no3d-dev/                                # repo root (folder still named
 ├── tools/
 │   ├── check_register.sh                # iterates extensions/*/; the gate
 │   ├── build_all.sh                     # headless extension build per ext
-│   └── publish_repo.sh                  # aggregates zips + gh-pages push
+│   ├── publish_repo.sh                  # aggregates zips + gh-pages push
+│   ├── vendor_sync.sh                   # pulls upstream source for vendored exts
+│   └── ship.sh                          # bump → build → prune → publish → tag → log
+├── vendor.toml                          # declares vendored sub-extensions
 ├── docs/superpowers/{specs,plans}/      # design specs + implementation plans
 ├── .superpowers/sdd/                    # active task briefs, reports, ledger
 ├── AGENTS.md                            # this file

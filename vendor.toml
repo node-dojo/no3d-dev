@@ -1,0 +1,23 @@
+# vendor.toml — declares sub-extensions in extensions/ whose source of truth
+# lives in an external git repository. tools/vendor_sync.sh reads this file to
+# pull the pinned ref's contents into the local extensions/<name>/ folder.
+#
+# Format: each top-level table key is the extension id (matching the folder
+# name under extensions/). Fields per entry:
+#   source       — git URL of the standalone repo
+#   ref          — branch, tag, or commit SHA to pull from (pin to a tag/SHA
+#                  for reproducibility; use a branch for follow-latest)
+#   subdir       — path INSIDE the source repo that maps to extensions/<name>/.
+#                  Contents of this dir become the extension's source tree.
+#
+# Files present locally under extensions/<name>/ that are NOT in the source's
+# subdir are preserved (so a locally-authored blender_manifest.toml or other
+# vendor-specific files survive a sync). See tools/vendor_sync.sh.
+#
+# Extensions absent from this file are treated as authored-in-place — sync is
+# skipped and their source is considered canonical in this repo.
+
+[no3d_camera_utilities]
+source = "https://github.com/node-dojo/no3d-camera-utilities.git"
+ref = "main"
+subdir = "no3d_camera_utilities"
