@@ -11,6 +11,7 @@ bl_info = {
 }
 
 import datetime
+import json
 import os
 
 import bpy
@@ -536,6 +537,35 @@ def _draw_addon_keymap_items(layout, context):
             )
 
 
+_WIP_FOLDER_BACKUP_FILENAME = "no3d_asset_developer_wip_folder.json"
+
+
+def _wip_folder_backup_path() -> str:
+    """Return a user-config path that survives extension reinstalls."""
+    config_dir = bpy.utils.user_resource("CONFIG")
+    return os.path.join(config_dir, _WIP_FOLDER_BACKUP_FILENAME)
+
+
+def _read_wip_folder_backup() -> str:
+    try:
+        with open(_wip_folder_backup_path(), "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data.get("folder", "") if isinstance(data, dict) else ""
+    except (OSError, json.JSONDecodeError):
+        return ""
+
+
+def _write_wip_folder_backup(folder: str) -> None:
+    """Persist the folder outside extension preferences for reinstall safety."""
+    try:
+        path = _wip_folder_backup_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({"folder": folder}, fh)
+    except OSError:
+        pass  # The primary AddonPreferences value remains available this session.
+
+
 def _on_wip_folder_changed(self, context):
     """When the user picks a WIP folder in the N-panel, persist it to prefs.
 
@@ -550,9 +580,9 @@ def _on_wip_folder_changed(self, context):
     if not (addon and hasattr(addon, "preferences")):
         return
     prefs = addon.preferences
-    if prefs.export_library_path == self.no3d_wip_folder:
-        return
-    prefs.export_library_path = self.no3d_wip_folder
+    if prefs.export_library_path != self.no3d_wip_folder:
+        prefs.export_library_path = self.no3d_wip_folder
+    _write_wip_folder_backup(self.no3d_wip_folder)
     try:
         bpy.ops.wm.save_userpref()
     except Exception:
@@ -577,8 +607,13 @@ def _seed_wip_folder_from_prefs():
     saved = ""
     if addon and hasattr(addon, "preferences"):
         saved = addon.preferences.export_library_path or ""
+    if not saved:
+        saved = _read_wip_folder_backup()
+    elif saved != _read_wip_folder_backup():
+        # Migrate existing preference-only settings to the reinstall-safe copy.
+        _write_wip_folder_backup(saved)
     if saved and not wm.no3d_wip_folder:
-        wm.no3d_wip_folder = saved  # update callback no-ops (same value)
+        wm.no3d_wip_folder = saved
     return None
 
 
