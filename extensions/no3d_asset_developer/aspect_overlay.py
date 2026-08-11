@@ -185,7 +185,7 @@ class NO3D_AspectCustomPreset(PropertyGroup):
 
 def _addon_prefs():
     """Return our AddonPreferences instance, or None."""
-    addon = bpy.context.preferences.addons.get("no3d_asset_developer")
+    addon = bpy.context.preferences.addons.get(__package__)
     if not addon:
         return None
     return getattr(addon, "preferences", None)

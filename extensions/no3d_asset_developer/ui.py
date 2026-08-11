@@ -409,7 +409,7 @@ class NO3D_PT_viewport_screenshot(Panel):
 
     def draw(self, context):
         layout = self.layout
-        addon = context.preferences.addons.get("no3d_asset_developer")
+        addon = context.preferences.addons.get(__package__)
         prefs = addon.preferences if addon else None
 
         col = layout.column(align=True)
@@ -507,7 +507,7 @@ class NO3D_PT_paste_clipboard(Panel):
 
     def draw(self, context):
         layout = self.layout
-        addon = context.preferences.addons.get("no3d_asset_developer")
+        addon = context.preferences.addons.get(__package__)
         prefs = addon.preferences if addon else None
 
         if prefs is not None:
@@ -545,7 +545,7 @@ class NO3D_PT_editor_screenshot(Panel):
 
     def draw(self, context):
         layout = self.layout
-        addon = context.preferences.addons.get("no3d_asset_developer")
+        addon = context.preferences.addons.get(__package__)
         prefs = addon.preferences if addon else None
 
         col = layout.column(align=True)
@@ -666,7 +666,7 @@ class NO3D_PT_node_screenshot(Panel):
 
     def draw(self, context):
         layout = self.layout
-        addon = context.preferences.addons.get("no3d_asset_developer")
+        addon = context.preferences.addons.get(__package__)
         prefs = addon.preferences if addon else None
 
         col = layout.column(align=True)

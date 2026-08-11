@@ -62,7 +62,7 @@ def get_wip_folder() -> str:
     path = _wm_get("no3d_wip_folder", "") or ""
     if not path:
         # Fall back to addon preferences if WM prop not yet seeded.
-        addon = bpy.context.preferences.addons.get("no3d_asset_developer")
+        addon = bpy.context.preferences.addons.get(__package__)
         if addon and hasattr(addon, "preferences"):
             path = getattr(addon.preferences, "export_library_path", "") or ""
     return bpy.path.abspath(path) if path else ""
@@ -164,7 +164,7 @@ def list_recent_folders(limit: int = 8) -> list[tuple[str, float]]:
 # ---------------------------------------------------------------------------
 
 def _get_prefs_obj():
-    addon = bpy.context.preferences.addons.get("no3d_asset_developer")
+    addon = bpy.context.preferences.addons.get(__package__)
     return getattr(addon, "preferences", None) if addon else None
 
 
