@@ -275,6 +275,24 @@ def _draw_extract_v3(self, context):
             wm, "no3d_public_recent_index", rows=5,
         )
 
+    obsidian_box = layout.box()
+    obsidian_header = obsidian_box.row(align=True)
+    obsidian_header.prop(
+        wm, "no3d_show_obsidian_links", text="Obsidian",
+        icon='TRIA_DOWN' if wm.no3d_show_obsidian_links else 'TRIA_RIGHT', emboss=False,
+    )
+    if wm.no3d_show_obsidian_links:
+        op = obsidian_box.operator("no3d.open_obsidian_bookmark", text="Open NO3D Library Vault", icon='FILE_FOLDER')
+        op.bookmark = "vault"
+        for bookmark, label in (
+            ("workbench", "Product Editing Workbench"),
+            ("workflow", "Product Catalog Workflow"),
+            ("add", "Quick Guide: Add Product"),
+            ("edit", "Quick Guide: Edit Product"),
+        ):
+            op = obsidian_box.operator("no3d.open_obsidian_bookmark", text=label, icon='LINKED')
+            op.bookmark = bookmark
+
     # Public-library actions are separate from WIP autosync by design.
     public_box = layout.box()
     public_header = public_box.row(align=True)

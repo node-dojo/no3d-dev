@@ -98,6 +98,28 @@ class NO3D_AddonPreferences(AddonPreferences):
         default="NO3D Tools",
     )
 
+    obsidian_library_vault_name: StringProperty(
+        name="Obsidian Library Vault",
+        description="Obsidian vault name containing the NO3D product library",
+        default="no3d-tools-library",
+    )
+
+    obsidian_docs_vault_name: StringProperty(
+        name="Obsidian Documentation Vault",
+        description="Obsidian vault name containing canonical NO3D documentation",
+        default="Vault_001",
+    )
+
+    obsidian_workbench_path: StringProperty(
+        name="Product Workbench Path",
+        default="Product Editing workbench.canvas",
+    )
+
+    obsidian_catalog_docs_path: StringProperty(
+        name="Catalog Workflow Path",
+        default="NO3D/docs/Product Catalog and Member Library Workflow.md",
+    )
+
     solvet_repo_path: StringProperty(
         name="SOLVET Repository",
         description="Repository containing the shared preview-first product workflow",
@@ -432,6 +454,10 @@ class NO3D_AddonPreferences(AddonPreferences):
         box.prop(self, "export_library_path")
         box.prop(self, "public_library_path")
         box.prop(self, "public_library_name")
+        box.prop(self, "obsidian_library_vault_name")
+        box.prop(self, "obsidian_docs_vault_name")
+        box.prop(self, "obsidian_workbench_path")
+        box.prop(self, "obsidian_catalog_docs_path")
         box.prop(self, "solvet_repo_path")
         box.prop(self, "public_auto_stage")
 

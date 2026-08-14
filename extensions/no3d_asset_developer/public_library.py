@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import time
+from urllib.parse import quote
 from datetime import date
 
 import bpy
@@ -181,6 +182,118 @@ class NO3D_UL_public_updates(UIList):
         op = row.operator("no3d.open_public_product_folder", text=item.name, icon='FILE_FOLDER', emboss=False)
         op.path = item.path
         row.label(text=elapsed_label(item.mtime))
+        actions = row.operator("no3d.public_update_actions", text="", icon='DOWNARROW_HLT')
+        actions.path = item.path
+
+
+def _obsidian_url(vault: str, file_path: str = "") -> str:
+    url = f"obsidian://open?vault={quote(vault, safe='')}"
+    return f"{url}&file={quote(file_path, safe='')}" if file_path else url
+
+
+def _open_url(url: str) -> None:
+    subprocess.Popen(["/usr/bin/open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def _product_file(folder: str, suffix: str) -> str:
+    name = os.path.basename(folder.rstrip(os.sep))
+    exact = os.path.join(folder, f"{name}{suffix}")
+    if os.path.isfile(exact):
+        return exact
+    try:
+        return next((os.path.join(folder, item) for item in os.listdir(folder) if item.endswith(suffix)), "")
+    except OSError:
+        return ""
+
+
+class NO3D_OT_public_product_action(Operator):
+    bl_idname = "no3d.public_product_action"
+    bl_label = "Public Product Action"
+    path: StringProperty()
+    action: StringProperty()
+
+    def execute(self, context):
+        prefs = _prefs()
+        if self.action == "finder":
+            bpy.ops.wm.path_open(filepath=self.path)
+        elif self.action == "canvas":
+            canvas = _product_file(self.path, ".canvas")
+            if not canvas:
+                self.report({"ERROR"}, "Product canvas not found")
+                return {"CANCELLED"}
+            library_root = bpy.path.abspath(prefs.public_library_path).rstrip(os.sep)
+            relative = os.path.relpath(canvas, os.path.dirname(library_root)).replace(os.sep, "/")
+            _open_url(_obsidian_url(prefs.obsidian_library_vault_name, relative))
+        elif self.action == "description":
+            description = _product_file(self.path, "_desc.md")
+            if not description:
+                self.report({"ERROR"}, "Product description not found")
+                return {"CANCELLED"}
+            library_root = bpy.path.abspath(prefs.public_library_path).rstrip(os.sep)
+            relative = os.path.relpath(description, os.path.dirname(library_root)).replace(os.sep, "/")
+            _open_url(_obsidian_url(prefs.obsidian_library_vault_name, relative))
+        elif self.action == "json":
+            json_path = _product_file(self.path, ".json")
+            if json_path:
+                subprocess.Popen(["/usr/bin/open", json_path])
+        elif self.action == "copy_path":
+            context.window_manager.clipboard = self.path
+        return {"FINISHED"}
+
+
+def _draw_product_actions(layout, path: str) -> None:
+    for action, label, icon in (
+        ("finder", "Open Product Folder in Finder", 'FILE_FOLDER'),
+        ("canvas", "Open Product Canvas in Obsidian", 'FILE'),
+        ("description", "Open Description in Obsidian", 'TEXT'),
+        ("json", "Open Product JSON", 'PRESET'),
+        ("copy_path", "Copy Product Path", 'COPYDOWN'),
+    ):
+        op = layout.operator("no3d.public_product_action", text=label, icon=icon)
+        op.path, op.action = path, action
+
+
+class NO3D_OT_public_update_actions(Operator):
+    bl_idname = "no3d.public_update_actions"
+    bl_label = "Product Actions"
+    path: StringProperty()
+
+    def invoke(self, context, _event):
+        path = self.path
+        context.window_manager.popup_menu(
+            lambda menu, _ctx: _draw_product_actions(menu.layout, path),
+            title=os.path.basename(path), icon='ASSET_MANAGER',
+        )
+        return {"FINISHED"}
+
+
+class NO3D_OT_open_obsidian_bookmark(Operator):
+    bl_idname = "no3d.open_obsidian_bookmark"
+    bl_label = "Open Obsidian Bookmark"
+    bookmark: StringProperty()
+
+    def execute(self, _context):
+        prefs = _prefs()
+        targets = {
+            "vault": (prefs.obsidian_library_vault_name, ""),
+            "workbench": (prefs.obsidian_library_vault_name, prefs.obsidian_workbench_path),
+            "workflow": (prefs.obsidian_docs_vault_name, prefs.obsidian_catalog_docs_path),
+            "add": (prefs.obsidian_docs_vault_name, "NO3D/docs/Quick Guide - Add a NO3D Product.md"),
+            "edit": (prefs.obsidian_docs_vault_name, "NO3D/docs/Quick Guide - Edit a NO3D Product.md"),
+        }
+        vault, path = targets[self.bookmark]
+        _open_url(_obsidian_url(vault, path))
+        return {"FINISHED"}
+
+
+def draw_button_context_menu(self, context):
+    button = getattr(context, "button_operator", None)
+    if button is None or getattr(button, "bl_idname", "") not in {
+        "NO3D_OT_open_public_product_folder", "no3d.open_public_product_folder",
+    }:
+        return
+    self.layout.separator()
+    _draw_product_actions(self.layout, button.path)
 
 
 class NO3D_OT_open_public_product_folder(Operator):
@@ -491,6 +604,9 @@ _classes = (
     NO3D_PublicRecentItem,
     NO3D_UL_public_updates,
     NO3D_OT_open_public_product_folder,
+    NO3D_OT_public_product_action,
+    NO3D_OT_public_update_actions,
+    NO3D_OT_open_obsidian_bookmark,
     NO3D_OT_edit_release_notes,
     NO3D_OT_save_release_notes,
     NO3D_PT_release_notes_editor,
@@ -509,15 +625,21 @@ def register():
     bpy.types.WindowManager.no3d_public_publish_plan = StringProperty(default="")
     bpy.types.WindowManager.no3d_public_publish_product = StringProperty(default="")
     bpy.types.WindowManager.no3d_show_public_updates = BoolProperty(default=True)
+    bpy.types.WindowManager.no3d_show_obsidian_links = BoolProperty(default=False)
     bpy.types.WindowManager.no3d_public_recent_items = CollectionProperty(type=NO3D_PublicRecentItem)
     bpy.types.WindowManager.no3d_public_recent_index = IntProperty(default=0)
     if _save_release_texts_on_save not in bpy.app.handlers.save_post:
         bpy.app.handlers.save_post.append(_save_release_texts_on_save)
     if _stage_linked_on_save not in bpy.app.handlers.save_post:
         bpy.app.handlers.save_post.append(_stage_linked_on_save)
+    bpy.types.UI_MT_button_context_menu.append(draw_button_context_menu)
 
 
 def unregister():
+    try:
+        bpy.types.UI_MT_button_context_menu.remove(draw_button_context_menu)
+    except (ValueError, AttributeError):
+        pass
     try:
         bpy.app.handlers.save_post.remove(_stage_linked_on_save)
     except ValueError:
@@ -527,7 +649,7 @@ def unregister():
     except ValueError:
         pass
     for name in (
-        "no3d_public_recent_index", "no3d_public_recent_items", "no3d_show_public_updates",
+        "no3d_public_recent_index", "no3d_public_recent_items", "no3d_show_public_updates", "no3d_show_obsidian_links",
         "no3d_public_publish_product",
         "no3d_public_publish_plan", "no3d_public_status",
     ):
