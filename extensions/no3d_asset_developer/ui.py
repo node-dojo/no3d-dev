@@ -16,6 +16,7 @@ from . import editor_screenshot
 from . import header_screenshots  # noqa: F401  (operators registered separately)
 from . import viewport_format
 from . import wip_sync
+from . import public_library
 from .notes import note_manager
 
 log = logging.getLogger(__name__)
@@ -257,6 +258,29 @@ def _draw_extract_v3(self, context):
         if status.get("msg"):
             ago = max(0, int(time.time() - status.get("ts", 0)))
             wip_box.label(text=f"{status['msg']} ({ago}s ago)", icon='INFO')
+
+    # Public-library actions are separate from WIP autosync by design.
+    public_box = layout.box()
+    public_box.label(text="Public Library", icon='WORLD')
+    asset = public_library._active_asset(context)
+    linked = public_library._linked_product(asset.name) if asset else None
+    if not asset:
+        public_box.label(text="Select a marked asset", icon='INFO')
+    elif not linked:
+        public_box.label(text=f"{asset.name}: WIP only")
+        public_box.operator("no3d.promote_public_draft", icon='PACKAGE')
+    else:
+        public_box.label(text=f"{linked.get('title', asset.name)} · {linked.get('status', 'draft')}")
+        row = public_box.row(align=True)
+        row.operator("no3d.stage_public_update", icon='FILE_TICK')
+        if linked.get('status', 'draft') == 'draft':
+            public_box.operator("no3d.activate_public_product", icon='CHECKMARK')
+        public_box.operator("no3d.preview_public_update", icon='VIEWZOOM')
+        if getattr(wm, "no3d_public_publish_plan", ""):
+            publish = public_box.row()
+            publish.alert = True
+            publish.operator("no3d.publish_public_update", icon='URL')
+    public_box.label(text=getattr(wm, "no3d_public_status", ""), icon='INFO')
 
     # 4 + 5. Extract buttons (scale_y 1.3)
     layout.separator()

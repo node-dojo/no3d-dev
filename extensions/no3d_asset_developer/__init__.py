@@ -38,6 +38,7 @@ from . import viewport_format
 from . import viewport_screenshot
 from . import wip
 from . import wip_sync
+from . import public_library
 from .notes import note_manager
 
 
@@ -81,7 +82,27 @@ class NO3D_AddonPreferences(AddonPreferences):
         name="Export Library Path",
         description="Default export directory for assets",
         subtype='DIR_PATH',
-        default="",
+        default="/Users/joebowers/Library/CloudStorage/Dropbox/Caveman Creative/THE WELL_Digital Assets/THE WELL_play files/WIP-Autosave Assets/",
+    )
+
+    public_library_path: StringProperty(
+        name="Public Product Library",
+        description="Canonical local product library; distinct from the WIP autosync library",
+        subtype='DIR_PATH',
+        default="/Users/joebowers/Library/CloudStorage/Dropbox/Caveman Creative/THE WELL_Digital Assets/The Well Code/solvet-global/no3d-tools-library/library/",
+    )
+
+    solvet_repo_path: StringProperty(
+        name="SOLVET Repository",
+        description="Repository containing the shared preview-first product workflow",
+        subtype='DIR_PATH',
+        default="/Users/joebowers/Library/CloudStorage/Dropbox/Caveman Creative/THE WELL_Digital Assets/The Well Code/solvet-global/",
+    )
+
+    public_auto_stage: BoolProperty(
+        name="Auto-stage linked public assets on Save",
+        description="Stage local files for already-linked products on save; never publishes remotely",
+        default=True,
     )
 
     node_screenshot_path: StringProperty(
@@ -403,6 +424,9 @@ class NO3D_AddonPreferences(AddonPreferences):
         box.prop(self, "default_vendor")
         box.prop(self, "default_product_type")
         box.prop(self, "export_library_path")
+        box.prop(self, "public_library_path")
+        box.prop(self, "solvet_repo_path")
+        box.prop(self, "public_auto_stage")
 
         layout.separator()
 
@@ -693,6 +717,7 @@ def register():
     ui.register()
     wip.register()
     wip_sync.register()
+    public_library.register()
     repo_registration.register()
     save_reload.register()
     claude_pair.register()
@@ -702,6 +727,7 @@ def unregister():
     claude_pair.unregister()
     save_reload.unregister()
     repo_registration.unregister()
+    public_library.unregister()
     wip_sync.unregister()
     wip.unregister()
     ui.unregister()
