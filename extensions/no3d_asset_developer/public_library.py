@@ -445,13 +445,17 @@ class NO3D_OT_publish_public_update(Operator):
         if not plan:
             self.report({"ERROR"}, "Run Review & Publish Update first")
             return {"CANCELLED"}
+        asset = _active_asset(context)
+        linked = _linked_product(asset.name) if asset else None
+        reviewed_product = context.window_manager.no3d_public_publish_product
+        if not linked or linked.get("title", asset.name) != reviewed_product:
+            self.report({"ERROR"}, f"This plan belongs to {reviewed_product or 'another product'}")
+            return {"CANCELLED"}
         ok, output = _run(["publish", "--plan", plan])
         if not ok:
             context.window_manager.no3d_public_status = "Publish incomplete; see console and review again"
             self.report({"ERROR"}, output[-240:] or "Publish failed")
             return {"CANCELLED"}
-        asset = _active_asset(context)
-        linked = _linked_product(asset.name) if asset else None
         if linked:
             _clear_published_text(linked["handle"])
         context.window_manager.no3d_public_publish_plan = ""

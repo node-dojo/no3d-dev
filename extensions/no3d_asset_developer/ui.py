@@ -277,7 +277,8 @@ def _draw_extract_v3(self, context):
 
     # Public-library actions are separate from WIP autosync by design.
     public_box = layout.box()
-    public_box.label(text=public_name, icon='WORLD')
+    public_header = public_box.row(align=True)
+    public_header.label(text=public_name, icon='WORLD')
     asset = public_library._active_asset(context)
     linked = public_library._linked_product(asset.name) if asset else None
     if not asset:
@@ -286,34 +287,51 @@ def _draw_extract_v3(self, context):
         public_box.label(text=f"{asset.name}: WIP only")
         public_box.operator("no3d.promote_public_draft", icon='PACKAGE')
     else:
-        public_box.label(text=f"Selected: {linked.get('title', asset.name)}")
-        public_box.label(text=f"Status: {linked.get('status', 'draft')}")
+        product_title = linked.get('title', asset.name)
+        identity = public_box.row(align=True)
+        identity.label(text=product_title, icon='ASSET_MANAGER')
+        identity.label(text=linked.get('status', 'draft'))
         if linked.get('status', 'draft') == 'draft':
             public_box.operator("no3d.activate_public_product", icon='CHECKMARK')
-        notes = public_box.column(align=True)
-        notes.label(text="Release notes")
+        notes = public_box.box().column(align=True)
+        notes.label(text="Next release notes")
         pending = linked.get("pending_changelog") or []
         if pending:
-            notes.label(text="Pending publication")
             preview = str(pending[-1]).splitlines()
             for line in preview[:3]:
                 notes.label(text=line[:80], icon='TIME')
         else:
             notes.label(text="No pending release note", icon='INFO')
         notes.operator("no3d.edit_release_notes", icon='TEXT')
+
+        history = public_box.box().column(align=True)
+        history.label(text="Published changelog")
         changelog = linked.get("changelog") or []
         if changelog:
-            notes.label(text="Recent entries")
             for entry in reversed(changelog[-3:]):
-                description = entry.get("description", "") if isinstance(entry, dict) else str(entry)
-                notes.label(text=description[:80], icon='DOT')
+                if isinstance(entry, dict):
+                    version = entry.get("version", "")
+                    entry_date = entry.get("date", "")
+                    description = entry.get("description") or entry.get("changes") or ""
+                    heading = " · ".join(value for value in (version, entry_date) if value)
+                    if heading:
+                        history.label(text=heading, icon='PRESET')
+                    for line in str(description).splitlines()[:2]:
+                        history.label(text=line[:80], icon='DOT')
+                else:
+                    history.label(text=str(entry)[:80], icon='DOT')
+        else:
+            history.label(text="No published entries yet", icon='INFO')
+
         public_box.operator("no3d.preview_public_update", text="Review Update", icon='VIEWZOOM')
-        if getattr(wm, "no3d_public_publish_plan", ""):
-            public_box.label(text="Will publish:")
-            public_box.label(text=getattr(wm, "no3d_public_publish_product", ""), icon='PACKAGE')
+        reviewed_product = getattr(wm, "no3d_public_publish_product", "")
+        if getattr(wm, "no3d_public_publish_plan", "") and reviewed_product == product_title:
+            public_box.label(text=f"Reviewed: {product_title}", icon='PACKAGE')
             publish = public_box.row()
             publish.alert = True
             publish.operator("no3d.publish_public_update", text="Publish This Product", icon='URL')
+        elif getattr(wm, "no3d_public_publish_plan", ""):
+            public_box.label(text=f"Reviewed plan belongs to {reviewed_product or 'another product'}", icon='ERROR')
     public_box.label(text=getattr(wm, "no3d_public_status", ""), icon='INFO')
 
 
