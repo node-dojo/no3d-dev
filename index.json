@@ -7,7 +7,7 @@
       "id": "no3d_asset_developer",
       "name": "No3d Asset Developer",
       "tagline": "Export clean per-asset .blend files with metadata & thumbnails",
-      "version": "4.0.3",
+      "version": "4.1.0",
       "type": "add-on",
       "maintainer": "Joe Bowers <joe@welltarot.com>",
       "license": [
@@ -26,9 +26,9 @@
         "Import-Export",
         "Pipeline"
       ],
-      "archive_url": "./no3d_asset_developer-4.0.3.zip",
-      "archive_size": 197947,
-      "archive_hash": "sha256:28c2df395e0b1b3c2884884b62d2601ca73c32c5b7c443f0d9efbdeccc0cce11"
+      "archive_url": "./no3d_asset_developer-4.1.0.zip",
+      "archive_size": 201751,
+      "archive_hash": "sha256:564d5b4138bfb815a3a558cc1ae318b0f8b0038f61585693af0d48eeb541dbde"
     },
     {
       "schema_version": "1.0.0",
