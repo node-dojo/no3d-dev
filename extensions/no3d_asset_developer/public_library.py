@@ -137,6 +137,20 @@ class NO3D_PublicRecentItem(PropertyGroup):
     mtime: bpy.props.FloatProperty()
 
 
+class NO3D_ChangelogLine(PropertyGroup):
+    text: StringProperty(name="Release note line")
+
+
+class NO3D_UL_changelog_lines(UIList):
+    def draw_item(self, _context, layout, _data, item, _icon, _active_data, _active_propname, _index):
+        layout.prop(item, "text", text="")
+
+
+def ensure_changelog_editor(wm) -> None:
+    if not wm.no3d_changelog_lines:
+        wm.no3d_changelog_lines.add()
+
+
 class NO3D_UL_public_updates(UIList):
     def draw_item(self, _context, layout, _data, item, _icon, _active_data, _active_propname, _index):
         row = layout.row(align=True)
@@ -163,25 +177,45 @@ class NO3D_OT_add_product_changelog(Operator):
     def execute(self, context):
         asset = _active_asset(context)
         product = _linked_product(asset.name) if asset else None
-        note = context.window_manager.no3d_public_changelog_note.strip()
+        ensure_changelog_editor(context.window_manager)
+        note = "\n".join(line.text.rstrip() for line in context.window_manager.no3d_changelog_lines).strip()
         if not product or not note:
             self.report({"ERROR"}, "Select a linked product and enter a changelog note")
             return {"CANCELLED"}
         path = product.pop("_json_path")
         product.pop("_folder_path", None)
-        product.setdefault("changelog", []).append({
-            "version": product.get("version") or "Unreleased",
-            "date": date.today().isoformat(),
-            "description": note,
-        })
+        product.setdefault("pending_changelog", []).append(note)
         dashboard = product.setdefault("dashboard", {})
-        dashboard["updated_at"] = date.today().isoformat()
+        dashboard["release_notes_updated_at"] = date.today().isoformat()
         with open(path, "w", encoding="utf-8") as handle:
             json.dump(product, handle, indent=2)
             handle.write("\n")
-        context.window_manager.no3d_public_changelog_note = ""
-        context.window_manager.no3d_public_status = "Changelog note added locally"
-        self.report({"INFO"}, "Changelog note added")
+        context.window_manager.no3d_changelog_lines.clear()
+        context.window_manager.no3d_changelog_lines.add()
+        context.window_manager.no3d_public_status = "Release note queued for the next successful publish"
+        self.report({"INFO"}, "Release note added to the next publication")
+        return {"FINISHED"}
+
+
+class NO3D_OT_add_changelog_line(Operator):
+    bl_idname = "no3d.add_changelog_line"
+    bl_label = "Add Line"
+
+    def execute(self, context):
+        context.window_manager.no3d_changelog_lines.add()
+        context.window_manager.no3d_changelog_line_index = len(context.window_manager.no3d_changelog_lines) - 1
+        return {"FINISHED"}
+
+
+class NO3D_OT_remove_changelog_line(Operator):
+    bl_idname = "no3d.remove_changelog_line"
+    bl_label = "Remove Line"
+
+    def execute(self, context):
+        wm = context.window_manager
+        if len(wm.no3d_changelog_lines) > 1:
+            wm.no3d_changelog_lines.remove(wm.no3d_changelog_line_index)
+            wm.no3d_changelog_line_index = min(wm.no3d_changelog_line_index, len(wm.no3d_changelog_lines) - 1)
         return {"FINISHED"}
 
 
@@ -382,9 +416,13 @@ def _stage_linked_on_save(_dummy):
 
 _classes = (
     NO3D_PublicRecentItem,
+    NO3D_ChangelogLine,
     NO3D_UL_public_updates,
+    NO3D_UL_changelog_lines,
     NO3D_OT_open_public_product_folder,
     NO3D_OT_add_product_changelog,
+    NO3D_OT_add_changelog_line,
+    NO3D_OT_remove_changelog_line,
     NO3D_OT_promote_public_draft,
     NO3D_OT_stage_public_update,
     NO3D_OT_activate_public_product,
@@ -399,7 +437,9 @@ def register():
     bpy.types.WindowManager.no3d_public_status = StringProperty(default="No public changes staged")
     bpy.types.WindowManager.no3d_public_publish_plan = StringProperty(default="")
     bpy.types.WindowManager.no3d_public_publish_product = StringProperty(default="")
-    bpy.types.WindowManager.no3d_public_changelog_note = StringProperty(name="Changelog note")
+    bpy.types.WindowManager.no3d_changelog_lines = CollectionProperty(type=NO3D_ChangelogLine)
+    bpy.types.WindowManager.no3d_changelog_line_index = IntProperty(default=0)
+    bpy.types.WindowManager.no3d_changelog_expanded = BoolProperty(default=False)
     bpy.types.WindowManager.no3d_show_public_updates = BoolProperty(default=True)
     bpy.types.WindowManager.no3d_public_recent_items = CollectionProperty(type=NO3D_PublicRecentItem)
     bpy.types.WindowManager.no3d_public_recent_index = IntProperty(default=0)
@@ -414,7 +454,8 @@ def unregister():
         pass
     for name in (
         "no3d_public_recent_index", "no3d_public_recent_items", "no3d_show_public_updates",
-        "no3d_public_changelog_note", "no3d_public_publish_product",
+        "no3d_changelog_expanded", "no3d_changelog_line_index", "no3d_changelog_lines",
+        "no3d_public_publish_product",
         "no3d_public_publish_plan", "no3d_public_status",
     ):
         try:
