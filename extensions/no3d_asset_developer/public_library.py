@@ -8,11 +8,13 @@ import os
 import re
 import shutil
 import subprocess
+import time
+from datetime import date
 
 import bpy
 from bpy.app.handlers import persistent
-from bpy.props import StringProperty
-from bpy.types import Operator
+from bpy.props import BoolProperty, CollectionProperty, IntProperty, StringProperty
+from bpy.types import Operator, PropertyGroup, UIList
 
 from . import wip_sync
 
@@ -72,8 +74,101 @@ def _linked_product(asset_name: str):
                 data.get("handle"), data.get("title"),
                 (data.get("dashboard") or {}).get("blender_asset_name"),
             ):
-                return data
+                return {**data, "_json_path": path, "_folder_path": folder}
     return None
+
+
+def library_name() -> str:
+    return getattr(_prefs(), "public_library_name", "NO3D Tools") or "NO3D Tools"
+
+
+def list_recent_public_updates() -> list[tuple[str, str, float]]:
+    _repo, library, _workflow = _paths()
+    if not library or not os.path.isdir(library):
+        return []
+    updates = []
+    try:
+        for name in os.listdir(library):
+            folder = os.path.join(library, name)
+            if name.startswith(".") or not os.path.isdir(folder):
+                continue
+            updates.append((name, folder, os.path.getmtime(folder)))
+    except OSError:
+        return []
+    return sorted(updates, key=lambda item: item[2], reverse=True)
+
+
+def refresh_recent_public_items(context) -> None:
+    wm = context.window_manager
+    source = list_recent_public_updates()
+    current = [(item.name, item.path, item.mtime) for item in wm.no3d_public_recent_items]
+    if current == source:
+        return
+    wm.no3d_public_recent_items.clear()
+    for name, path, mtime in source:
+        item = wm.no3d_public_recent_items.add()
+        item.name, item.path, item.mtime = name, path, mtime
+
+
+def elapsed_label(timestamp: float) -> str:
+    age = max(0, time.time() - timestamp)
+    if age < 60: return f"{int(age)}s"
+    if age < 3600: return f"{int(age / 60)}m"
+    if age < 86400: return f"{int(age / 3600)}h"
+    return f"{int(age / 86400)}d"
+
+
+class NO3D_PublicRecentItem(PropertyGroup):
+    path: StringProperty()
+    mtime: bpy.props.FloatProperty()
+
+
+class NO3D_UL_public_updates(UIList):
+    def draw_item(self, _context, layout, _data, item, _icon, _active_data, _active_propname, _index):
+        row = layout.row(align=True)
+        op = row.operator("no3d.open_public_product_folder", text=item.name, icon='FILE_FOLDER', emboss=False)
+        op.path = item.path
+        row.label(text=elapsed_label(item.mtime))
+
+
+class NO3D_OT_open_public_product_folder(Operator):
+    bl_idname = "no3d.open_public_product_folder"
+    bl_label = "Open Public Product Folder"
+    path: StringProperty()
+
+    def execute(self, _context):
+        bpy.ops.wm.path_open(filepath=self.path)
+        return {"FINISHED"}
+
+
+class NO3D_OT_add_product_changelog(Operator):
+    bl_idname = "no3d.add_product_changelog"
+    bl_label = "Add Note"
+    bl_description = "Append a dated changelog note to the selected public product"
+
+    def execute(self, context):
+        asset = _active_asset(context)
+        product = _linked_product(asset.name) if asset else None
+        note = context.window_manager.no3d_public_changelog_note.strip()
+        if not product or not note:
+            self.report({"ERROR"}, "Select a linked product and enter a changelog note")
+            return {"CANCELLED"}
+        path = product.pop("_json_path")
+        product.pop("_folder_path", None)
+        product.setdefault("changelog", []).append({
+            "version": product.get("version") or "Unreleased",
+            "date": date.today().isoformat(),
+            "description": note,
+        })
+        dashboard = product.setdefault("dashboard", {})
+        dashboard["updated_at"] = date.today().isoformat()
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(product, handle, indent=2)
+            handle.write("\n")
+        context.window_manager.no3d_public_changelog_note = ""
+        context.window_manager.no3d_public_status = "Changelog note added locally"
+        self.report({"INFO"}, "Changelog note added")
+        return {"FINISHED"}
 
 
 def _run(args: list[str]) -> tuple[bool, str]:
@@ -184,12 +279,17 @@ class NO3D_OT_preview_public_update(Operator):
         if not linked:
             self.report({"ERROR"}, "Promote this asset to a public draft first")
             return {"CANCELLED"}
+        staged, stage_output = stage_linked_asset(asset)
+        if not staged:
+            self.report({"ERROR"}, stage_output[-240:])
+            return {"CANCELLED"}
         ok, output = _run(["preview", "--product", linked["handle"]])
         match = PLAN_RE.search(output)
         if not ok or not match:
             self.report({"ERROR"}, (output[-240:] if output else "Preview failed"))
             return {"CANCELLED"}
         context.window_manager.no3d_public_publish_plan = match.group(1)
+        context.window_manager.no3d_public_publish_product = linked.get("title", asset.name)
         context.window_manager.no3d_public_status = f"Reviewed {asset.name}; plan ready for 30 minutes"
         self.report({"INFO"}, "Review passed. Use Publish Update to deploy this exact version.")
         return {"FINISHED"}
@@ -225,7 +325,7 @@ class NO3D_OT_activate_public_product(Operator):
 
 class NO3D_OT_publish_public_update(Operator):
     bl_idname = "no3d.publish_public_update"
-    bl_label = "Publish Update"
+    bl_label = "Publish This Product"
     bl_description = "Publish the exact unchanged version represented by the reviewed plan"
     bl_options = {"REGISTER"}
 
@@ -233,7 +333,7 @@ class NO3D_OT_publish_public_update(Operator):
         return context.window_manager.invoke_confirm(
             self, _event, title="Publish NO3D product update?",
             message="This uploads media/assets, updates the live catalog, and regenerates the member manifest.",
-            confirm_text="Publish Update",
+            confirm_text="Publish This Product",
         )
 
     def execute(self, context):
@@ -247,6 +347,7 @@ class NO3D_OT_publish_public_update(Operator):
             self.report({"ERROR"}, output[-240:] or "Publish failed")
             return {"CANCELLED"}
         context.window_manager.no3d_public_publish_plan = ""
+        context.window_manager.no3d_public_publish_product = ""
         context.window_manager.no3d_public_status = "Published and manifest regenerated"
         self.report({"INFO"}, "NO3D product update published")
         return {"FINISHED"}
@@ -266,6 +367,10 @@ def _stage_linked_on_save(_dummy):
 
 
 _classes = (
+    NO3D_PublicRecentItem,
+    NO3D_UL_public_updates,
+    NO3D_OT_open_public_product_folder,
+    NO3D_OT_add_product_changelog,
     NO3D_OT_promote_public_draft,
     NO3D_OT_stage_public_update,
     NO3D_OT_activate_public_product,
@@ -279,6 +384,11 @@ def register():
         bpy.utils.register_class(cls)
     bpy.types.WindowManager.no3d_public_status = StringProperty(default="No public changes staged")
     bpy.types.WindowManager.no3d_public_publish_plan = StringProperty(default="")
+    bpy.types.WindowManager.no3d_public_publish_product = StringProperty(default="")
+    bpy.types.WindowManager.no3d_public_changelog_note = StringProperty(name="Changelog note")
+    bpy.types.WindowManager.no3d_show_public_updates = BoolProperty(default=True)
+    bpy.types.WindowManager.no3d_public_recent_items = CollectionProperty(type=NO3D_PublicRecentItem)
+    bpy.types.WindowManager.no3d_public_recent_index = IntProperty(default=0)
     if _stage_linked_on_save not in bpy.app.handlers.save_post:
         bpy.app.handlers.save_post.append(_stage_linked_on_save)
 
@@ -288,7 +398,11 @@ def unregister():
         bpy.app.handlers.save_post.remove(_stage_linked_on_save)
     except ValueError:
         pass
-    for name in ("no3d_public_publish_plan", "no3d_public_status"):
+    for name in (
+        "no3d_public_recent_index", "no3d_public_recent_items", "no3d_show_public_updates",
+        "no3d_public_changelog_note", "no3d_public_publish_product",
+        "no3d_public_publish_plan", "no3d_public_status",
+    ):
         try:
             delattr(bpy.types.WindowManager, name)
         except AttributeError:

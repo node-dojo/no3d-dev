@@ -205,50 +205,26 @@ def _draw_extract_v3(self, context):
         icon='FILE_REFRESH',
     )
 
-    # 2. Recents (only when a WIP folder is configured)
-    if wip_folder_set:
-        recents_box = layout.box()
-        header = recents_box.row(align=True)
-        header.label(text="Recents", icon='SORTTIME')
-        header.prop(wm, "no3d_wip_recent_count", text="")
-        limit = int(getattr(wm, "no3d_wip_recent_count", 8))
-        recents = wip_sync.list_recent_folders(limit)
-        if not recents:
-            recents_box.label(text="No assets synced yet", icon='INFO')
-        else:
-            now = time.time()
-            col = recents_box.column(align=True)
-            for name, mtime in recents:
-                age = now - mtime
-                if age < 60:
-                    ago_str = f"{int(age)}s"
-                elif age < 3600:
-                    ago_str = f"{int(age / 60)}m"
-                elif age < 86400:
-                    ago_str = f"{int(age / 3600)}h"
-                else:
-                    ago_str = f"{int(age / 86400)}d"
-                row = col.row(align=True)
-                op = row.operator(
-                    "asset.open_wip_folder_no3d",
-                    text=f"{name}",
-                    icon='FILE_FOLDER',
-                    emboss=False,
-                )
-                op.folder_name = name
-                row.label(text=ago_str)
+    # Extraction actions are a compact pair directly under Sync All.
+    extract_row = layout.row(align=True)
+    extract_row.operator("asset.extract_v3_active_no3d", text="Extract Active", icon='EXPORT')
+    extract_row.operator("asset.extract_v3_all_no3d", text="Extract All", icon='PACKAGE')
 
-    # 3. WIP Auto-Sync section
+    # WIP folder stays visible; its behavioral settings are tucked away.
     wip_box = layout.box()
-    header = wip_box.row()
-    header.label(text="WIP Auto-Sync", icon='FILE_REFRESH')
+    wip_box.label(text="WIP Library", icon='FILE_FOLDER')
     wip_box.prop(wm, "no3d_wip_folder", text="Folder")
 
     if not wip_folder_set:
         warn = wip_box.box()
         warn.alert = True
         warn.label(text="Set folder to enable auto-sync", icon='ERROR')
-    else:
+    auto_header = wip_box.row(align=True)
+    auto_header.prop(
+        wm, "no3d_show_auto_sync", text="Auto-Sync Settings",
+        icon='TRIA_DOWN' if wm.no3d_show_auto_sync else 'TRIA_RIGHT', emboss=False,
+    )
+    if wm.no3d_show_auto_sync:
         toggles = wip_box.column(align=True)
         toggles.prop(wm, "no3d_wip_auto_mark")
         toggles.prop(wm, "no3d_wip_auto_save")
@@ -259,9 +235,49 @@ def _draw_extract_v3(self, context):
             ago = max(0, int(time.time() - status.get("ts", 0)))
             wip_box.label(text=f"{status['msg']} ({ago}s ago)", icon='INFO')
 
+    # Short combined activity list from both configured libraries.
+    recents_box = layout.box()
+    header = recents_box.row(align=True)
+    header.label(text="Recent Assets", icon='SORTTIME')
+    header.prop(wm, "no3d_wip_recent_count", text="")
+    limit = int(getattr(wm, "no3d_wip_recent_count", 3))
+    combined = []
+    if wip_folder_set:
+        combined.extend((mtime, "WIP", name, "wip") for name, mtime in wip_sync.list_recent_folders(limit))
+    public_name = public_library.library_name()
+    combined.extend((mtime, public_name, name, "public") for name, _path, mtime in public_library.list_recent_public_updates()[:limit])
+    combined.sort(key=lambda item: item[0], reverse=True)
+    for mtime, source, name, kind in combined[:limit]:
+        row = recents_box.row(align=True)
+        row.label(text=source)
+        if kind == "wip":
+            op = row.operator("asset.open_wip_folder_no3d", text=name, icon='FILE_FOLDER', emboss=False)
+            op.folder_name = name
+        else:
+            product = next((item for item in public_library.list_recent_public_updates() if item[0] == name), None)
+            op = row.operator("no3d.open_public_product_folder", text=name, icon='FILE_FOLDER', emboss=False)
+            op.path = product[1] if product else ""
+        row.label(text=public_library.elapsed_label(mtime))
+    if not combined:
+        recents_box.label(text="No recent assets", icon='INFO')
+
+    # Longer scrollable public-only history.
+    public_library.refresh_recent_public_items(context)
+    updates_box = layout.box()
+    updates_header = updates_box.row(align=True)
+    updates_header.prop(
+        wm, "no3d_show_public_updates", text="Recent Public Updates",
+        icon='TRIA_DOWN' if wm.no3d_show_public_updates else 'TRIA_RIGHT', emboss=False,
+    )
+    if wm.no3d_show_public_updates:
+        updates_box.template_list(
+            "NO3D_UL_public_updates", "", wm, "no3d_public_recent_items",
+            wm, "no3d_public_recent_index", rows=5,
+        )
+
     # Public-library actions are separate from WIP autosync by design.
     public_box = layout.box()
-    public_box.label(text="Public Library", icon='WORLD')
+    public_box.label(text=public_name, icon='WORLD')
     asset = public_library._active_asset(context)
     linked = public_library._linked_product(asset.name) if asset else None
     if not asset:
@@ -270,32 +286,30 @@ def _draw_extract_v3(self, context):
         public_box.label(text=f"{asset.name}: WIP only")
         public_box.operator("no3d.promote_public_draft", icon='PACKAGE')
     else:
-        public_box.label(text=f"{linked.get('title', asset.name)} · {linked.get('status', 'draft')}")
-        row = public_box.row(align=True)
-        row.operator("no3d.stage_public_update", icon='FILE_TICK')
+        public_box.label(text=f"Selected: {linked.get('title', asset.name)}")
+        public_box.label(text=f"Status: {linked.get('status', 'draft')}")
         if linked.get('status', 'draft') == 'draft':
             public_box.operator("no3d.activate_public_product", icon='CHECKMARK')
-        public_box.operator("no3d.preview_public_update", icon='VIEWZOOM')
+        notes = public_box.column(align=True)
+        notes.label(text="Changelog")
+        note_row = notes.row(align=True)
+        note_row.prop(wm, "no3d_public_changelog_note", text="")
+        note_row.operator("no3d.add_product_changelog", text="Add Note", icon='ADD')
+        changelog = linked.get("changelog") or []
+        if changelog:
+            notes.label(text="Recent entries")
+            for entry in reversed(changelog[-3:]):
+                description = entry.get("description", "") if isinstance(entry, dict) else str(entry)
+                notes.label(text=description[:80], icon='DOT')
+        public_box.operator("no3d.preview_public_update", text="Review Update", icon='VIEWZOOM')
         if getattr(wm, "no3d_public_publish_plan", ""):
+            public_box.label(text="Will publish:")
+            public_box.label(text=getattr(wm, "no3d_public_publish_product", ""), icon='PACKAGE')
             publish = public_box.row()
             publish.alert = True
-            publish.operator("no3d.publish_public_update", icon='URL')
+            publish.operator("no3d.publish_public_update", text="Publish This Product", icon='URL')
     public_box.label(text=getattr(wm, "no3d_public_status", ""), icon='INFO')
 
-    # 4 + 5. Extract buttons (scale_y 1.3)
-    layout.separator()
-    col = layout.column(align=True)
-    col.scale_y = 1.3
-    col.operator(
-        "asset.extract_v3_active_no3d",
-        text="Extract Active Asset",
-        icon='EXPORT',
-    )
-    col.operator(
-        "asset.extract_v3_all_no3d",
-        text="Extract All Assets",
-        icon='PACKAGE',
-    )
 
 
 class NO3D_PT_extract_v3(Panel):

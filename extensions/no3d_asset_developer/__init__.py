@@ -92,6 +92,12 @@ class NO3D_AddonPreferences(AddonPreferences):
         default="/Users/joebowers/Library/CloudStorage/Dropbox/Caveman Creative/THE WELL_Digital Assets/The Well Code/solvet-global/no3d-tools-library/library/",
     )
 
+    public_library_name: StringProperty(
+        name="Public Library Name",
+        description="Display name used for public-library activity and product controls",
+        default="NO3D Tools",
+    )
+
     solvet_repo_path: StringProperty(
         name="SOLVET Repository",
         description="Repository containing the shared preview-first product workflow",
@@ -425,6 +431,7 @@ class NO3D_AddonPreferences(AddonPreferences):
         box.prop(self, "default_product_type")
         box.prop(self, "export_library_path")
         box.prop(self, "public_library_path")
+        box.prop(self, "public_library_name")
         box.prop(self, "solvet_repo_path")
         box.prop(self, "public_auto_stage")
 
@@ -676,10 +683,11 @@ def _register_wm_props():
     bpy.types.WindowManager.no3d_wip_recent_count = IntProperty(
         name="Recents Shown",
         description="How many of the most recently saved assets to list",
-        default=8,
+        default=3,
         min=1,
         max=30,
     )
+    bpy.types.WindowManager.no3d_show_auto_sync = BoolProperty(default=False)
 
 
 def _unregister_wm_props():
@@ -690,6 +698,7 @@ def _unregister_wm_props():
         "no3d_wip_auto_save",
         "no3d_wip_auto_rename",
         "no3d_wip_recent_count",
+        "no3d_show_auto_sync",
     ):
         try:
             delattr(bpy.types.WindowManager, prop)
