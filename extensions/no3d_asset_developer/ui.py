@@ -291,29 +291,16 @@ def _draw_extract_v3(self, context):
         if linked.get('status', 'draft') == 'draft':
             public_box.operator("no3d.activate_public_product", icon='CHECKMARK')
         notes = public_box.column(align=True)
-        editor_header = notes.row(align=True)
-        editor_header.prop(
-            wm, "no3d_changelog_expanded", text="Next release note",
-            icon='TRIA_DOWN' if wm.no3d_changelog_expanded else 'TRIA_RIGHT', emboss=False,
-        )
-        public_library.ensure_changelog_editor(wm)
-        if wm.no3d_changelog_expanded:
-            editor = notes.row()
-            editor.template_list(
-                "NO3D_UL_changelog_lines", "", wm, "no3d_changelog_lines",
-                wm, "no3d_changelog_line_index", rows=5,
-            )
-            controls = editor.column(align=True)
-            controls.operator("no3d.add_changelog_line", text="", icon='ADD')
-            controls.operator("no3d.remove_changelog_line", text="", icon='REMOVE')
-        else:
-            notes.prop(wm.no3d_changelog_lines[0], "text", text="")
-        notes.operator("no3d.add_product_changelog", text="Add to Next Release", icon='ADD')
+        notes.label(text="Release notes")
         pending = linked.get("pending_changelog") or []
         if pending:
             notes.label(text="Pending publication")
-            for entry in pending[-3:]:
-                notes.label(text=str(entry).splitlines()[0][:80], icon='TIME')
+            preview = str(pending[-1]).splitlines()
+            for line in preview[:3]:
+                notes.label(text=line[:80], icon='TIME')
+        else:
+            notes.label(text="No pending release note", icon='INFO')
+        notes.operator("no3d.edit_release_notes", icon='TEXT')
         changelog = linked.get("changelog") or []
         if changelog:
             notes.label(text="Recent entries")

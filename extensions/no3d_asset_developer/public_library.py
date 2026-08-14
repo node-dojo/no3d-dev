@@ -14,7 +14,7 @@ from datetime import date
 import bpy
 from bpy.app.handlers import persistent
 from bpy.props import BoolProperty, CollectionProperty, IntProperty, StringProperty
-from bpy.types import Operator, PropertyGroup, UIList
+from bpy.types import Operator, Panel, PropertyGroup, UIList
 
 from . import wip_sync
 
@@ -137,18 +137,42 @@ class NO3D_PublicRecentItem(PropertyGroup):
     mtime: bpy.props.FloatProperty()
 
 
-class NO3D_ChangelogLine(PropertyGroup):
-    text: StringProperty(name="Release note line")
+def _release_text_name(handle: str) -> str:
+    return f"NO3D Release Notes — {handle}"
 
 
-class NO3D_UL_changelog_lines(UIList):
-    def draw_item(self, _context, layout, _data, item, _icon, _active_data, _active_propname, _index):
-        layout.prop(item, "text", text="")
+def _save_release_text(text) -> tuple[bool, str]:
+    json_path = text.get("no3d_product_json", "")
+    if not json_path or not os.path.isfile(json_path):
+        return False, "The linked product JSON is unavailable"
+    try:
+        with open(json_path, "r", encoding="utf-8") as handle:
+            product = json.load(handle)
+        body = text.as_string().strip()
+        product["pending_changelog"] = [body] if body else []
+        product.setdefault("dashboard", {})["release_notes_updated_at"] = date.today().isoformat()
+        with open(json_path, "w", encoding="utf-8") as handle:
+            json.dump(product, handle, indent=2)
+            handle.write("\n")
+        text["no3d_saved_body"] = body
+        return True, "Release notes saved locally"
+    except (OSError, json.JSONDecodeError) as exc:
+        return False, str(exc)
 
 
-def ensure_changelog_editor(wm) -> None:
-    if not wm.no3d_changelog_lines:
-        wm.no3d_changelog_lines.add()
+def _save_text_for_product(product) -> tuple[bool, str]:
+    text = bpy.data.texts.get(_release_text_name(product["handle"]))
+    if text is None:
+        return True, "No open release-note document"
+    return _save_release_text(text)
+
+
+def _clear_published_text(handle: str) -> None:
+    text = bpy.data.texts.get(_release_text_name(handle))
+    if text is not None:
+        text.clear()
+        text["no3d_saved_body"] = ""
+        text["no3d_published"] = True
 
 
 class NO3D_UL_public_updates(UIList):
@@ -169,54 +193,82 @@ class NO3D_OT_open_public_product_folder(Operator):
         return {"FINISHED"}
 
 
-class NO3D_OT_add_product_changelog(Operator):
-    bl_idname = "no3d.add_product_changelog"
-    bl_label = "Add Note"
-    bl_description = "Append a dated changelog note to the selected public product"
+class NO3D_OT_edit_release_notes(Operator):
+    bl_idname = "no3d.edit_release_notes"
+    bl_label = "Edit Next Release Notes"
+    bl_description = "Open product-bound pending release notes in Blender's native Text Editor"
 
     def execute(self, context):
         asset = _active_asset(context)
         product = _linked_product(asset.name) if asset else None
-        ensure_changelog_editor(context.window_manager)
-        note = "\n".join(line.text.rstrip() for line in context.window_manager.no3d_changelog_lines).strip()
-        if not product or not note:
-            self.report({"ERROR"}, "Select a linked product and enter a changelog note")
+        if not product:
+            self.report({"ERROR"}, "Select a linked public product")
             return {"CANCELLED"}
-        path = product.pop("_json_path")
-        product.pop("_folder_path", None)
-        product.setdefault("pending_changelog", []).append(note)
-        dashboard = product.setdefault("dashboard", {})
-        dashboard["release_notes_updated_at"] = date.today().isoformat()
-        with open(path, "w", encoding="utf-8") as handle:
-            json.dump(product, handle, indent=2)
-            handle.write("\n")
-        context.window_manager.no3d_changelog_lines.clear()
-        context.window_manager.no3d_changelog_lines.add()
-        context.window_manager.no3d_public_status = "Release note queued for the next successful publish"
-        self.report({"INFO"}, "Release note added to the next publication")
+        name = _release_text_name(product["handle"])
+        text = bpy.data.texts.get(name) or bpy.data.texts.new(name)
+        pending = "\n\n".join(str(note) for note in (product.get("pending_changelog") or []))
+        if "no3d_product_json" not in text:
+            text.write(pending)
+            text["no3d_saved_body"] = pending
+        text["no3d_product_handle"] = product["handle"]
+        text["no3d_product_title"] = product.get("title", asset.name)
+        text["no3d_product_json"] = product["_json_path"]
+        text["no3d_published"] = False
+
+        existing_windows = {window.as_pointer() for window in context.window_manager.windows}
+        try:
+            bpy.ops.screen.area_dupli('INVOKE_DEFAULT')
+        except RuntimeError:
+            self.report({"WARNING"}, "Release-note text created; open a Text Editor to edit it")
+            return {"FINISHED"}
+
+        attempts = [0]
+        def configure_text_window():
+            attempts[0] += 1
+            for window in bpy.context.window_manager.windows:
+                if window.as_pointer() in existing_windows:
+                    continue
+                area = window.screen.areas[0] if window.screen.areas else None
+                if area:
+                    area.type = 'TEXT_EDITOR'
+                    area.spaces.active.text = text
+                    return None
+            return 0.1 if attempts[0] < 20 else None
+        bpy.app.timers.register(configure_text_window, first_interval=0.1)
         return {"FINISHED"}
 
 
-class NO3D_OT_add_changelog_line(Operator):
-    bl_idname = "no3d.add_changelog_line"
-    bl_label = "Add Line"
+class NO3D_OT_save_release_notes(Operator):
+    bl_idname = "no3d.save_release_notes"
+    bl_label = "Save Release Notes"
 
     def execute(self, context):
-        context.window_manager.no3d_changelog_lines.add()
-        context.window_manager.no3d_changelog_line_index = len(context.window_manager.no3d_changelog_lines) - 1
-        return {"FINISHED"}
+        text = getattr(context.space_data, "text", None)
+        if text is None or "no3d_product_json" not in text:
+            self.report({"ERROR"}, "This is not a NO3D release-note document")
+            return {"CANCELLED"}
+        ok, message = _save_release_text(text)
+        self.report({"INFO" if ok else "ERROR"}, message)
+        return {"FINISHED" if ok else "CANCELLED"}
 
 
-class NO3D_OT_remove_changelog_line(Operator):
-    bl_idname = "no3d.remove_changelog_line"
-    bl_label = "Remove Line"
+class NO3D_PT_release_notes_editor(Panel):
+    bl_label = "NO3D Release Notes"
+    bl_idname = "NO3D_PT_release_notes_editor"
+    bl_space_type = 'TEXT_EDITOR'
+    bl_region_type = 'UI'
+    bl_category = "NO3D"
 
-    def execute(self, context):
-        wm = context.window_manager
-        if len(wm.no3d_changelog_lines) > 1:
-            wm.no3d_changelog_lines.remove(wm.no3d_changelog_line_index)
-            wm.no3d_changelog_line_index = min(wm.no3d_changelog_line_index, len(wm.no3d_changelog_lines) - 1)
-        return {"FINISHED"}
+    @classmethod
+    def poll(cls, context):
+        text = getattr(context.space_data, "text", None)
+        return text is not None and "no3d_product_json" in text
+
+    def draw(self, context):
+        text = context.space_data.text
+        self.layout.label(text=f"Product: {text.get('no3d_product_title', '')}")
+        self.layout.label(text="Release: Next publication")
+        self.layout.operator("no3d.save_release_notes", icon='FILE_TICK')
 
 
 def _run(args: list[str]) -> tuple[bool, str]:
@@ -327,6 +379,10 @@ class NO3D_OT_preview_public_update(Operator):
         if not linked:
             self.report({"ERROR"}, "Promote this asset to a public draft first")
             return {"CANCELLED"}
+        saved, save_message = _save_text_for_product(linked)
+        if not saved:
+            self.report({"ERROR"}, save_message)
+            return {"CANCELLED"}
         staged, stage_output = stage_linked_asset(asset)
         if not staged:
             self.report({"ERROR"}, stage_output[-240:])
@@ -394,6 +450,10 @@ class NO3D_OT_publish_public_update(Operator):
             context.window_manager.no3d_public_status = "Publish incomplete; see console and review again"
             self.report({"ERROR"}, output[-240:] or "Publish failed")
             return {"CANCELLED"}
+        asset = _active_asset(context)
+        linked = _linked_product(asset.name) if asset else None
+        if linked:
+            _clear_published_text(linked["handle"])
         context.window_manager.no3d_public_publish_plan = ""
         context.window_manager.no3d_public_publish_product = ""
         context.window_manager.no3d_public_status = "Published and manifest regenerated"
@@ -414,15 +474,22 @@ def _stage_linked_on_save(_dummy):
             log.exception("Could not auto-stage linked public asset")
 
 
+@persistent
+def _save_release_texts_on_save(_dummy):
+    for text in bpy.data.texts:
+        if "no3d_product_json" in text and text.as_string().strip() != text.get("no3d_saved_body", ""):
+            ok, message = _save_release_text(text)
+            if not ok:
+                log.error("Could not save %s: %s", text.name, message)
+
+
 _classes = (
     NO3D_PublicRecentItem,
-    NO3D_ChangelogLine,
     NO3D_UL_public_updates,
-    NO3D_UL_changelog_lines,
     NO3D_OT_open_public_product_folder,
-    NO3D_OT_add_product_changelog,
-    NO3D_OT_add_changelog_line,
-    NO3D_OT_remove_changelog_line,
+    NO3D_OT_edit_release_notes,
+    NO3D_OT_save_release_notes,
+    NO3D_PT_release_notes_editor,
     NO3D_OT_promote_public_draft,
     NO3D_OT_stage_public_update,
     NO3D_OT_activate_public_product,
@@ -437,12 +504,11 @@ def register():
     bpy.types.WindowManager.no3d_public_status = StringProperty(default="No public changes staged")
     bpy.types.WindowManager.no3d_public_publish_plan = StringProperty(default="")
     bpy.types.WindowManager.no3d_public_publish_product = StringProperty(default="")
-    bpy.types.WindowManager.no3d_changelog_lines = CollectionProperty(type=NO3D_ChangelogLine)
-    bpy.types.WindowManager.no3d_changelog_line_index = IntProperty(default=0)
-    bpy.types.WindowManager.no3d_changelog_expanded = BoolProperty(default=False)
     bpy.types.WindowManager.no3d_show_public_updates = BoolProperty(default=True)
     bpy.types.WindowManager.no3d_public_recent_items = CollectionProperty(type=NO3D_PublicRecentItem)
     bpy.types.WindowManager.no3d_public_recent_index = IntProperty(default=0)
+    if _save_release_texts_on_save not in bpy.app.handlers.save_post:
+        bpy.app.handlers.save_post.append(_save_release_texts_on_save)
     if _stage_linked_on_save not in bpy.app.handlers.save_post:
         bpy.app.handlers.save_post.append(_stage_linked_on_save)
 
@@ -452,9 +518,12 @@ def unregister():
         bpy.app.handlers.save_post.remove(_stage_linked_on_save)
     except ValueError:
         pass
+    try:
+        bpy.app.handlers.save_post.remove(_save_release_texts_on_save)
+    except ValueError:
+        pass
     for name in (
         "no3d_public_recent_index", "no3d_public_recent_items", "no3d_show_public_updates",
-        "no3d_changelog_expanded", "no3d_changelog_line_index", "no3d_changelog_lines",
         "no3d_public_publish_product",
         "no3d_public_publish_plan", "no3d_public_status",
     ):
