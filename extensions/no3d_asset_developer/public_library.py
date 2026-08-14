@@ -20,6 +20,7 @@ from . import wip_sync
 
 log = logging.getLogger(__name__)
 PLAN_RE = re.compile(r"NO3D_PUBLISH_PLAN=([0-9a-f-]{36})", re.IGNORECASE)
+_public_recent_cache: tuple[float, str, list[tuple[str, str, float]]] = (0.0, "", [])
 
 
 def _prefs():
@@ -86,16 +87,29 @@ def list_recent_public_updates() -> list[tuple[str, str, float]]:
     _repo, library, _workflow = _paths()
     if not library or not os.path.isdir(library):
         return []
+    global _public_recent_cache
+    cached_at, cached_library, cached_updates = _public_recent_cache
+    if cached_library == library and time.monotonic() - cached_at < 2.0:
+        return cached_updates
     updates = []
     try:
         for name in os.listdir(library):
             folder = os.path.join(library, name)
             if name.startswith(".") or not os.path.isdir(folder):
                 continue
-            updates.append((name, folder, os.path.getmtime(folder)))
+            newest = os.path.getmtime(folder)
+            for root, _dirs, files in os.walk(folder):
+                for filename in files:
+                    try:
+                        newest = max(newest, os.path.getmtime(os.path.join(root, filename)))
+                    except OSError:
+                        pass
+            updates.append((name, folder, newest))
     except OSError:
         return []
-    return sorted(updates, key=lambda item: item[2], reverse=True)
+    updates.sort(key=lambda item: item[2], reverse=True)
+    _public_recent_cache = (time.monotonic(), library, updates)
+    return updates
 
 
 def refresh_recent_public_items(context) -> None:

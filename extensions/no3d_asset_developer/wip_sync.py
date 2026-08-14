@@ -44,6 +44,7 @@ DEBOUNCE_SECONDS = 0.2
 _last_asset_names: set[str] | None = None
 _last_depsgraph_tick: float = 0.0
 _last_sync_summary: dict = {"count": 0, "ts": 0.0, "msg": ""}
+_recent_cache: tuple[float, str, list[tuple[str, float]]] = (0.0, "", [])
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +145,10 @@ def list_recent_folders(limit: int = 8) -> list[tuple[str, float]]:
     wip_folder = get_wip_folder()
     if not wip_folder or not os.path.isdir(wip_folder):
         return []
+    global _recent_cache
+    cached_at, cached_folder, cached_entries = _recent_cache
+    if cached_folder == wip_folder and time.monotonic() - cached_at < 2.0:
+        return cached_entries[:limit]
     entries: list[tuple[str, float]] = []
     try:
         for name in os.listdir(wip_folder):
@@ -152,10 +157,18 @@ def list_recent_folders(limit: int = 8) -> list[tuple[str, float]]:
             full = os.path.join(wip_folder, name)
             if not os.path.isdir(full):
                 continue
-            entries.append((name, os.path.getmtime(full)))
+            newest = os.path.getmtime(full)
+            for root, _dirs, files in os.walk(full):
+                for filename in files:
+                    try:
+                        newest = max(newest, os.path.getmtime(os.path.join(root, filename)))
+                    except OSError:
+                        pass
+            entries.append((name, newest))
     except OSError:
         return []
     entries.sort(key=lambda e: e[1], reverse=True)
+    _recent_cache = (time.monotonic(), wip_folder, entries)
     return entries[:limit]
 
 
