@@ -7,7 +7,7 @@
       "id": "no3d_asset_developer",
       "name": "No3d Asset Developer",
       "tagline": "Export clean per-asset .blend files with metadata & thumbnails",
-      "version": "4.1.6",
+      "version": "4.1.7",
       "type": "add-on",
       "maintainer": "Joe Bowers <joe@welltarot.com>",
       "license": [
@@ -26,9 +26,9 @@
         "Import-Export",
         "Pipeline"
       ],
-      "archive_url": "./no3d_asset_developer-4.1.6.zip",
-      "archive_size": 206560,
-      "archive_hash": "sha256:918df02aa95400ad5d1e55059e22ce5300b2eda12ed8bdfd6b49731a6db3e049"
+      "archive_url": "./no3d_asset_developer-4.1.7.zip",
+      "archive_size": 209591,
+      "archive_hash": "sha256:47a1238a60caef53c1306b286185cfb691998e2001721abdfd72ec052b08b1cc"
     },
     {
       "schema_version": "1.0.0",
@@ -55,7 +55,7 @@
       ],
       "archive_url": "./no3d_camera_utilities-1.0.0.zip",
       "archive_size": 15895,
-      "archive_hash": "sha256:a93af397ba1104e8be0a03892b14428fd44c1358b495bed4b7f821c85a67ff6b"
+      "archive_hash": "sha256:fd42c5ed218c99113ec71ba8a173fdb318d006ea14536c10d32849724e25f540"
     },
     {
       "schema_version": "1.0.0",
@@ -83,7 +83,7 @@
       ],
       "archive_url": "./agent_bridge-0.2.1.zip",
       "archive_size": 17574,
-      "archive_hash": "sha256:dfc35ba46d49954adc757f7c0c0fccd801752c385ea75d247c098d34aefa9f3d"
+      "archive_hash": "sha256:6a32e7d0e4a40682220317d746aa66482e7dcbeb6c3618850a0a9e4f6ee50bae"
     }
   ]
 }
