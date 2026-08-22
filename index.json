@@ -4,34 +4,6 @@
   "data": [
     {
       "schema_version": "1.0.0",
-      "id": "no3d_asset_developer",
-      "name": "No3d Asset Developer",
-      "tagline": "Export clean per-asset .blend files with metadata & thumbnails",
-      "version": "4.1.7",
-      "type": "add-on",
-      "maintainer": "Joe Bowers <joe@welltarot.com>",
-      "license": [
-        "SPDX:GPL-3.0-or-later"
-      ],
-      "blender_version_min": "5.0.0",
-      "website": "https://no3dtools.com",
-      "copyright": [
-        "2026 The Well Tarot, LLC"
-      ],
-      "permissions": {
-        "files": "Export asset .blend files, thumbnails, and metadata to disk",
-        "network": "Starts the official Blender MCP bridge server on localhost"
-      },
-      "tags": [
-        "Import-Export",
-        "Pipeline"
-      ],
-      "archive_url": "./no3d_asset_developer-4.1.7.zip",
-      "archive_size": 209591,
-      "archive_hash": "sha256:47a1238a60caef53c1306b286185cfb691998e2001721abdfd72ec052b08b1cc"
-    },
-    {
-      "schema_version": "1.0.0",
       "id": "no3d_camera_utilities",
       "name": "No3d Camera Utilities",
       "tagline": "2D/3D mesh camera tools, framing plane, and render utilities",
@@ -84,6 +56,34 @@
       "archive_url": "./agent_bridge-0.2.1.zip",
       "archive_size": 17574,
       "archive_hash": "sha256:6a32e7d0e4a40682220317d746aa66482e7dcbeb6c3618850a0a9e4f6ee50bae"
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "no3d_asset_developer",
+      "name": "No3d Asset Developer",
+      "tagline": "Export clean per-asset .blend files with metadata & thumbnails",
+      "version": "4.1.8",
+      "type": "add-on",
+      "maintainer": "Joe Bowers <joe@welltarot.com>",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "5.0.0",
+      "website": "https://no3dtools.com",
+      "copyright": [
+        "2026 The Well Tarot, LLC"
+      ],
+      "permissions": {
+        "files": "Export asset .blend files, thumbnails, and metadata to disk",
+        "network": "Starts the official Blender MCP bridge server on localhost"
+      },
+      "tags": [
+        "Import-Export",
+        "Pipeline"
+      ],
+      "archive_url": "./no3d_asset_developer-4.1.8.zip",
+      "archive_size": 210745,
+      "archive_hash": "sha256:7f5440ab40e6febb8916dfd866c017c468f55fe8c86a702851783c5909dbc8ce"
     }
   ]
 }
