@@ -28,7 +28,7 @@
       ],
       "archive_url": "./no3d_asset_developer-4.1.6.zip",
       "archive_size": 206560,
-      "archive_hash": "sha256:97c1b82ae8785dd0b917596bad4728088a594b5e5cbf9fd273e71954378f3ae1"
+      "archive_hash": "sha256:918df02aa95400ad5d1e55059e22ce5300b2eda12ed8bdfd6b49731a6db3e049"
     },
     {
       "schema_version": "1.0.0",
@@ -55,7 +55,35 @@
       ],
       "archive_url": "./no3d_camera_utilities-1.0.0.zip",
       "archive_size": 15895,
-      "archive_hash": "sha256:26fd3a2f03c804ab7c1f343e77209fe94ce34a27b7d4c1af3a78cb086cdf62c4"
+      "archive_hash": "sha256:a93af397ba1104e8be0a03892b14428fd44c1358b495bed4b7f821c85a67ff6b"
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "agent_bridge",
+      "name": "Agent Bridge",
+      "tagline": "Serve this Blender to Claude agents by .blend filename",
+      "version": "0.2.0",
+      "type": "add-on",
+      "maintainer": "Joe Bowers <joe@welltarot.com>",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "5.0.0",
+      "website": "https://no3dtools.com",
+      "copyright": [
+        "2026 The Well Tarot, LLC"
+      ],
+      "permissions": {
+        "network": "Starts the official Blender MCP bridge server on localhost",
+        "files": "Writes this instance's connection info under ~/.blender-pairs"
+      },
+      "tags": [
+        "Pipeline",
+        "Development"
+      ],
+      "archive_url": "./agent_bridge-0.2.0.zip",
+      "archive_size": 17572,
+      "archive_hash": "sha256:b9d824956568c106708a37c5f4a46a0ea639c296d8045b926f8ed5c15c2cfeaa"
     }
   ]
 }
