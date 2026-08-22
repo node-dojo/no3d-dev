@@ -40,12 +40,18 @@ class NO3D_WIP_PT_feature_view_align(bpy.types.Panel):
         layout = self.layout
         layout.label(text="Alt+A in viewport", icon="EVENT_A")
         row = layout.row(align=True)
-        row.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Left").direction = ids.DIR_LEFT
-        row.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Right").direction = ids.DIR_RIGHT
+        row.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Origin Left").direction = ids.DIR_LEFT
+        row.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Origin Right").direction = ids.DIR_RIGHT
         row = layout.row(align=True)
-        row.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Top").direction = ids.DIR_TOP
-        row.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Bottom").direction = ids.DIR_BOTTOM
-        layout.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Center").direction = ids.DIR_CENTER
+        row.operator(ids.VIEW_ALIGN_BOUNDS_OT_IDNAME, text="Left Edges").direction = ids.DIR_LEFT
+        row.operator(ids.VIEW_ALIGN_BOUNDS_OT_IDNAME, text="Right Edges").direction = ids.DIR_RIGHT
+        row = layout.row(align=True)
+        row.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Origin Top").direction = ids.DIR_TOP
+        row.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Origin Bottom").direction = ids.DIR_BOTTOM
+        row = layout.row(align=True)
+        row.operator(ids.VIEW_ALIGN_BOUNDS_OT_IDNAME, text="Top Edges").direction = ids.DIR_TOP
+        row.operator(ids.VIEW_ALIGN_BOUNDS_OT_IDNAME, text="Bottom Edges").direction = ids.DIR_BOTTOM
+        layout.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Origin Center").direction = ids.DIR_CENTER
         layout.operator(ids.VIEW_DISTRIBUTE_OT_IDNAME, text="Distribute", icon="ALIGN_JUSTIFY")
 
 

@@ -34,6 +34,32 @@ _DIRECTION_ITEMS = (
 )
 
 
+def _addon_preferences():
+    addon = bpy.context.preferences.addons.get(__package__.rsplit(".", 1)[0])
+    return addon.preferences if addon else None
+
+
+def _object_world_bounds(obj):
+    corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+    return tuple(
+        (min(point[axis] for point in corners), max(point[axis] for point in corners))
+        for axis in range(3)
+    )
+
+
+def _resolve_direction(direction, right_i, up_i, flip_r, flip_u):
+    """Map a view direction to one or two world-axis target kinds."""
+    if direction == ids.DIR_CENTER:
+        return [(right_i, "CENTER"), (up_i, "CENTER")]
+    if direction in (ids.DIR_LEFT, ids.DIR_RIGHT):
+        axis = right_i
+        kind = ("MIN" if flip_r else "MAX") if direction == ids.DIR_RIGHT else ("MAX" if flip_r else "MIN")
+    else:
+        axis = up_i
+        kind = ("MIN" if flip_u else "MAX") if direction == ids.DIR_TOP else ("MAX" if flip_u else "MIN")
+    return [(axis, kind)]
+
+
 def _get_right_and_up_axes(context):
     """Resolve which world axis points right/up on screen for the current view.
 
@@ -78,22 +104,7 @@ class NO3D_WIP_OT_view_align(Operator):
 
     def _resolve_axes_types(self, right_i, up_i, flip_r, flip_u):
         """Map the chosen direction to a list of (axis_index, MIN/MAX/CENTER)."""
-        if self.direction == ids.DIR_CENTER:
-            return [(right_i, "CENTER"), (up_i, "CENTER")]
-
-        if self.direction in (ids.DIR_LEFT, ids.DIR_RIGHT):
-            axis = right_i
-            if self.direction == ids.DIR_RIGHT:
-                kind = "MIN" if flip_r else "MAX"
-            else:
-                kind = "MAX" if flip_r else "MIN"
-        else:  # TOP / BOTTOM
-            axis = up_i
-            if self.direction == ids.DIR_TOP:
-                kind = "MIN" if flip_u else "MAX"
-            else:
-                kind = "MAX" if flip_u else "MIN"
-        return [(axis, kind)]
+        return _resolve_direction(self.direction, right_i, up_i, flip_r, flip_u)
 
     @staticmethod
     def _target(coords, kind):
@@ -131,6 +142,39 @@ class NO3D_WIP_OT_view_align(Operator):
                 o.matrix_world.translation[axis] = target
 
 
+class NO3D_WIP_OT_view_align_bounds(Operator):
+    """Align selected object bounding edges without changing rotation or scale."""
+
+    bl_idname = ids.VIEW_ALIGN_BOUNDS_OT_IDNAME
+    bl_label = ids.VIEW_ALIGN_BOUNDS_OT_LABEL
+    bl_description = "Align selected object bounding edges to a view-relative side"
+    bl_options = {"REGISTER", "UNDO"}
+
+    direction: EnumProperty(name="Direction", items=_DIRECTION_ITEMS, default=ids.DIR_LEFT)
+
+    @classmethod
+    def poll(cls, context):
+        return context.mode == "OBJECT" and len(context.selected_objects) > 0
+
+    def execute(self, context):
+        right_i, up_i, flip_r, flip_u = _get_right_and_up_axes(context)
+        axis, kind = _resolve_direction(self.direction, right_i, up_i, flip_r, flip_u)[0]
+        objects = list(context.selected_objects)
+        bounds = {obj: _object_world_bounds(obj) for obj in objects}
+        prefs = _addon_preferences()
+        reference_mode = getattr(prefs, "view_align_bounds_reference", "SELECTION")
+        active = context.view_layer.objects.active
+        if reference_mode == "ACTIVE" and active in bounds:
+            target = bounds[active][axis][0 if kind == "MIN" else 1]
+        else:
+            edges = [value[axis][0 if kind == "MIN" else 1] for value in bounds.values()]
+            target = min(edges) if kind == "MIN" else max(edges)
+        edge_index = 0 if kind == "MIN" else 1
+        for obj in objects:
+            obj.matrix_world.translation[axis] += target - bounds[obj][axis][edge_index]
+        return {"FINISHED"}
+
+
 class NO3D_WIP_OT_view_distribute(Operator):
     """Interactively stack object bounds along the world axis nearest the drag."""
 
@@ -156,11 +200,7 @@ class NO3D_WIP_OT_view_distribute(Operator):
 
     @staticmethod
     def _object_bounds(obj):
-        corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
-        return tuple(
-            (min(point[axis] for point in corners), max(point[axis] for point in corners))
-            for axis in range(3)
-        )
+        return _object_world_bounds(obj)
 
     def _capture_view(self, context):
         rotation = context.space_data.region_3d.view_rotation.copy()
@@ -218,7 +258,13 @@ class NO3D_WIP_OT_view_distribute(Operator):
     def _update_from_event(self, context, event):
         self._mouse = Vector((event.mouse_region_x, event.mouse_region_y))
         delta = self._mouse - self._start_mouse
-        self._pick_direction(delta)
+        if self._axis_lock is None:
+            self._pick_direction(delta)
+        else:
+            self._axis = self._axis_lock
+            projected = self._axis_screen[self._axis]
+            if projected is not None and delta.length >= 4.0:
+                self._forward = delta.dot(projected) >= 0.0
 
         if self._zero_gap:
             gap = 0.0
@@ -302,9 +348,9 @@ class NO3D_WIP_OT_view_distribute(Operator):
             # Short perpendicular ticks mark each object's live min/max bound
             # along the chosen axis, making positive and negative gaps legible.
             screen_axis = self._axis_screen[self._axis]
-            perpendicular = Vector((-screen_axis.y, screen_axis.x)) * 4.0
+            perpendicular = Vector((-screen_axis.y, screen_axis.x)) * 4.0 if screen_axis else None
             tick_vertices = []
-            for obj in self._ordered:
+            for obj in self._ordered if perpendicular else ():
                 bounds = self._object_bounds(obj)
                 center = Vector(tuple(sum(bounds[i]) * 0.5 for i in range(3)))
                 for edge in bounds[self._axis]:
@@ -321,10 +367,11 @@ class NO3D_WIP_OT_view_distribute(Operator):
 
         axis_name = "XYZ"[self._axis]
         arrow = "→" if self._forward else "←"
-        title = f"{axis_name} {arrow}   Gap {self._formatted_gap()}"
+        mode = "LOCKED" if self._axis_lock is not None else "AUTO"
+        title = f"{mode} {axis_name} {arrow}   Gap {self._formatted_gap()}"
         if self._zero_gap:
             title += "   ZERO LOCK"
-        help_text = "Z Zero Gap  ·  Shift Fine  ·  Ctrl Snap  ·  Alt Overlap"
+        help_text = f"A Zero Gap  ·  {self._axis_key_help} Axis Lock  ·  Shift Fine  ·  Ctrl Snap  ·  Alt Overlap"
         x, y = self._mouse.x + 18.0, self._mouse.y + 22.0
         font_id = 0
         blf.size(font_id, 13)
@@ -376,6 +423,21 @@ class NO3D_WIP_OT_view_distribute(Operator):
         self._mouse = self._start_mouse.copy()
         self._gap = 0.0
         self._zero_gap = False
+        self._axis_lock = None
+        prefs = _addon_preferences()
+        self._axis_keys = {
+            getattr(prefs, "view_distribute_axis_x_key", "X"): 0,
+            getattr(prefs, "view_distribute_axis_y_key", "C"): 1,
+            getattr(prefs, "view_distribute_axis_z_key", "Z"): 2,
+        }
+        self._axis_key_help = "/".join(
+            getattr(prefs, name, fallback)
+            for name, fallback in (
+                ("view_distribute_axis_x_key", "X"),
+                ("view_distribute_axis_y_key", "C"),
+                ("view_distribute_axis_z_key", "Z"),
+            )
+        )
         self._ordered = []
         self._draw_handle = None
         self._scene = context.scene
@@ -388,7 +450,7 @@ class NO3D_WIP_OT_view_distribute(Operator):
         )
         context.window.cursor_modal_set("CROSSHAIR")
         context.area.header_text_set(
-            "View Distribute: move to choose direction/gap · Z zero gap · LMB/Enter confirm · RMB/Esc cancel"
+            f"View Distribute: move for direction/gap · A zero gap · {self._axis_key_help} axis locks · LMB/Enter confirm · RMB/Esc cancel"
         )
         context.window_manager.modal_handler_add(self)
         context.area.tag_redraw()
@@ -403,8 +465,12 @@ class NO3D_WIP_OT_view_distribute(Operator):
         if event.type in {"LEFTMOUSE", "RET", "NUMPAD_ENTER"} and event.value == "PRESS":
             self._finish(context)
             return {"FINISHED"}
-        if event.type == "Z" and event.value == "PRESS":
+        if event.type == "A" and event.value == "PRESS":
             self._zero_gap = not self._zero_gap
+            self._update_from_event(context, event)
+        elif event.type in self._axis_keys and event.value == "PRESS":
+            chosen = self._axis_keys[event.type]
+            self._axis_lock = None if self._axis_lock == chosen else chosen
             self._update_from_event(context, event)
         elif event.type == "MOUSEMOVE" or event.type in {
             "LEFT_SHIFT", "RIGHT_SHIFT", "LEFT_CTRL", "RIGHT_CTRL", "LEFT_ALT", "RIGHT_ALT"
@@ -421,18 +487,27 @@ class NO3D_WIP_MT_view_align_pie(Menu):
     def draw(self, context):
         pie = self.layout.menu_pie()
         # Pie slot order: W, E, S, N, NW, NE, SW, SE
-        pie.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Left").direction = ids.DIR_LEFT      # W
-        pie.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Right").direction = ids.DIR_RIGHT    # E
-        pie.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Bottom").direction = ids.DIR_BOTTOM  # S
-        pie.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Top").direction = ids.DIR_TOP        # N
+        west = pie.column(align=True)
+        west.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Origin Left").direction = ids.DIR_LEFT
+        west.operator(ids.VIEW_ALIGN_BOUNDS_OT_IDNAME, text="Align Left Edges").direction = ids.DIR_LEFT
+        east = pie.column(align=True)
+        east.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Origin Right").direction = ids.DIR_RIGHT
+        east.operator(ids.VIEW_ALIGN_BOUNDS_OT_IDNAME, text="Align Right Edges").direction = ids.DIR_RIGHT
+        south = pie.column(align=True)
+        south.operator(ids.VIEW_ALIGN_BOUNDS_OT_IDNAME, text="Align Bottom Edges").direction = ids.DIR_BOTTOM
+        south.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Origin Bottom").direction = ids.DIR_BOTTOM
+        north = pie.column(align=True)
+        north.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Origin Top").direction = ids.DIR_TOP
+        north.operator(ids.VIEW_ALIGN_BOUNDS_OT_IDNAME, text="Align Top Edges").direction = ids.DIR_TOP
         pie.operator(ids.VIEW_DISTRIBUTE_OT_IDNAME, text="Distribute", icon="ALIGN_JUSTIFY")  # NW
         pie.separator()  # NE
         pie.separator()  # SW
-        pie.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Center").direction = ids.DIR_CENTER  # SE
+        pie.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Origin Center").direction = ids.DIR_CENTER  # SE
 
 
 CLASSES = (
     NO3D_WIP_OT_view_align,
+    NO3D_WIP_OT_view_align_bounds,
     NO3D_WIP_OT_view_distribute,
     NO3D_WIP_MT_view_align_pie,
 )
