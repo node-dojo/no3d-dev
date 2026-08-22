@@ -1,0 +1,45 @@
+schema_version = "1.0.0"
+
+id = "agent_bridge"
+version = "0.2.0"
+name = "Agent Bridge"
+tagline = "Serve this Blender to Claude agents by .blend filename"
+maintainer = "Joe Bowers <joe@welltarot.com>"
+type = "add-on"
+
+website = "https://no3dtools.com"
+
+tags = ["Pipeline", "Development"]
+
+blender_version_min = "5.0.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+
+copyright = [
+  "2026 The Well Tarot, LLC",
+]
+
+# The Blender side starts the official Blender MCP bridge server on localhost and
+# registers this instance (pid, port, .blend stem) into ~/.blender-pairs/<pid>.json
+# so Agent Bridge (the MCP server, a separate process) can route agent calls here.
+[permissions]
+network = "Starts the official Blender MCP bridge server on localhost"
+files = "Writes this instance's connection info under ~/.blender-pairs"
+
+# Ship the whole agent_bridge package. Only the Blender-side (__init__.py operators/
+# panel, serve_helpers, registry) runs inside Blender; the MCP-server modules
+# (bridge_server, bridge_tools, resolver) are bpy-free and simply unused in-process —
+# they exist for the standalone `agent-bridge` MCP command. Keeping one package is
+# simpler than splitting, and the unused modules are harmless (never imported by the
+# Blender entry points).
+[build]
+paths = [
+  "__init__.py",
+  "serve_helpers.py",
+  "registry.py",
+  "resolver.py",
+  "bridge_server.py",
+  "bridge_tools.py",
+]
