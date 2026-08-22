@@ -62,7 +62,7 @@
       "id": "agent_bridge",
       "name": "Agent Bridge",
       "tagline": "Serve this Blender to Claude agents by .blend filename",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "type": "add-on",
       "maintainer": "Joe Bowers <joe@welltarot.com>",
       "license": [
@@ -81,9 +81,9 @@
         "Pipeline",
         "Development"
       ],
-      "archive_url": "./agent_bridge-0.2.0.zip",
-      "archive_size": 17572,
-      "archive_hash": "sha256:b9d824956568c106708a37c5f4a46a0ea639c296d8045b926f8ed5c15c2cfeaa"
+      "archive_url": "./agent_bridge-0.2.1.zip",
+      "archive_size": 17574,
+      "archive_hash": "sha256:dfc35ba46d49954adc757f7c0c0fccd801752c385ea75d247c098d34aefa9f3d"
     }
   ]
 }
