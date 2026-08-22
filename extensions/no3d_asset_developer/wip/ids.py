@@ -17,6 +17,8 @@ TOOLBOX_PANEL_LABEL = "Toolbox"
 # View Align — view-relative directional align (verts in edit mode, objects in object mode)
 VIEW_ALIGN_OT_IDNAME = "no3d_wip.view_align"
 VIEW_ALIGN_OT_LABEL = "View Align"
+VIEW_DISTRIBUTE_OT_IDNAME = "no3d_wip.view_distribute"
+VIEW_DISTRIBUTE_OT_LABEL = "View Distribute"
 VIEW_ALIGN_PIE_IDNAME = "NO3D_WIP_MT_view_align_pie"
 VIEW_ALIGN_PIE_LABEL = "View Align"
 
@@ -57,8 +59,8 @@ FEATURES = (
     {
         "id": "view_align",
         "name": VIEW_ALIGN_PIE_LABEL,
-        "version": "0.1.0",
-        "updated": "2026-06-16 00:00",
+        "version": "0.2.0",
+        "updated": "2026-08-21 00:00",
         "icon": "MOD_MIRROR",
         "panel_id": VIEW_ALIGN_SUBPANEL_IDNAME,
     },

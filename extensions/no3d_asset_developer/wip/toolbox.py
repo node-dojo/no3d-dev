@@ -46,6 +46,7 @@ class NO3D_WIP_PT_feature_view_align(bpy.types.Panel):
         row.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Top").direction = ids.DIR_TOP
         row.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Bottom").direction = ids.DIR_BOTTOM
         layout.operator(ids.VIEW_ALIGN_OT_IDNAME, text="Center").direction = ids.DIR_CENTER
+        layout.operator(ids.VIEW_DISTRIBUTE_OT_IDNAME, text="Distribute", icon="ALIGN_JUSTIFY")
 
 
 CLASSES = (
