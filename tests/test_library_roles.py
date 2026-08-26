@@ -32,3 +32,28 @@ def test_missing_or_unverified_marker_fails_closed(tmp_path):
         assert "missing or invalid" in str(error)
     else:
         raise AssertionError("markerless root was accepted")
+
+
+def test_registration_refuses_same_display_name_at_another_root(tmp_path):
+    marker = tmp_path / library_roles.MARKER_FILENAME
+    marker.write_text(json.dumps({
+        "schema_version": library_roles.SCHEMA,
+        "library_id": library_roles.STAGED_ID,
+        "role": "staged",
+        "verified_at": "2026-08-26T04:00:00Z",
+    }))
+
+    class Existing:
+        name = library_roles.STAGED_DISPLAY_NAME
+        path = str(tmp_path / "wrong")
+
+    class Libraries(list):
+        def new(self, **_kwargs):
+            raise AssertionError("ambiguous registration should not create a library")
+
+    try:
+        library_roles.ensure_registration(Libraries([Existing()]), library_roles.STAGED_DISPLAY_NAME, str(tmp_path), library_roles.STAGED_ID, "staged")
+    except ValueError as error:
+        assert "already bound" in str(error)
+    else:
+        raise AssertionError("ambiguous Blender registration was accepted")

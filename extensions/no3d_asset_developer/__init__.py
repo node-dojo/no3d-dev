@@ -31,6 +31,7 @@ from . import clipboard_paste
 from . import repo_registration
 from . import editor_screenshot
 from . import header_screenshots
+from . import library_roles
 from . import node_screenshot
 from . import operators
 from . import ui
@@ -674,6 +675,31 @@ def _seed_wip_folder_from_prefs():
     return None
 
 
+def _register_identified_authoring_libraries():
+    addon = bpy.context.preferences.addons.get(__package__)
+    if not addon:
+        return None
+    prefs = addon.preferences
+    try:
+        library_roles.ensure_registration(
+            bpy.context.preferences.filepaths.asset_libraries,
+            library_roles.WIP_DISPLAY_NAME,
+            bpy.path.abspath(prefs.export_library_path),
+            library_roles.WIP_ID,
+            "wip",
+        )
+        library_roles.ensure_registration(
+            bpy.context.preferences.filepaths.asset_libraries,
+            library_roles.STAGED_DISPLAY_NAME,
+            bpy.path.abspath(prefs.public_library_path),
+            library_roles.STAGED_ID,
+            "staged",
+        )
+    except ValueError as exc:
+        print(f"[NO3D Library Roles] {exc}")
+    return None
+
+
 def _register_wm_props():
     bpy.types.WindowManager.no3d_extraction_method = EnumProperty(
         name="Extraction Method",
@@ -741,6 +767,7 @@ def register():
     bpy.utils.register_class(NO3D_AddonPreferences)
     _register_wm_props()
     bpy.app.timers.register(_seed_wip_folder_from_prefs, first_interval=0.0)
+    bpy.app.timers.register(_register_identified_authoring_libraries, first_interval=0.1)
     note_manager.register()
     operators.register()
     node_screenshot.register()
@@ -776,6 +803,8 @@ def unregister():
     note_manager.unregister()
     if bpy.app.timers.is_registered(_seed_wip_folder_from_prefs):
         bpy.app.timers.unregister(_seed_wip_folder_from_prefs)
+    if bpy.app.timers.is_registered(_register_identified_authoring_libraries):
+        bpy.app.timers.unregister(_register_identified_authoring_libraries)
     _unregister_wm_props()
     bpy.utils.unregister_class(NO3D_AddonPreferences)
     # aspect_overlay last: prefs (which referenced its PropertyGroup) is
