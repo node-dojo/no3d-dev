@@ -17,7 +17,7 @@ from bpy.app.handlers import persistent
 from bpy.props import BoolProperty, CollectionProperty, IntProperty, StringProperty
 from bpy.types import Operator, Panel, PropertyGroup, UIList
 
-from . import library_roles, wip_sync
+from . import library_roles, solvet_bridge, wip_sync
 
 log = logging.getLogger(__name__)
 PLAN_RE = re.compile(r"NO3D_PUBLISH_PLAN=([0-9a-f-]{36})", re.IGNORECASE)
@@ -414,6 +414,14 @@ def _run(args: list[str]) -> tuple[bool, str]:
     return result.returncode == 0, output
 
 
+def _run_solvet_validation(source: str) -> tuple[bool, str]:
+    repo, _library, _workflow = _paths()
+    ok, output = solvet_bridge.validate_entry(repo, source)
+    if output:
+        print(f"[NO3D SOLVET Validation]\n{output}")
+    return ok, output
+
+
 def _sync_current_to_wip(asset) -> tuple[bool, str, str]:
     wip = wip_sync.get_wip_folder()
     if not wip:
@@ -436,6 +444,9 @@ def stage_linked_asset(asset, quiet: bool = False, export_first: bool = True) ->
         source = os.path.join(wip_sync.get_wip_folder(), asset.name)
         if not os.path.isdir(source):
             return False, "WIP stage source is unavailable"
+    valid, validation = _run_solvet_validation(source)
+    if not valid:
+        return False, validation or "SOLVET validation failed"
     product_id = ((linked.get("metadata") or {}).get("solvet") or {}).get("product_id")
     ok, output = _run(["stage", "--asset-name", asset.name, "--product", product_id or linked["handle"], "--source-folder", source])
     if ok:
@@ -459,6 +470,10 @@ class NO3D_OT_promote_public_draft(Operator):
         ok, message, source = _sync_current_to_wip(asset)
         if not ok:
             self.report({"ERROR"}, message)
+            return {"CANCELLED"}
+        valid, validation = _run_solvet_validation(source)
+        if not valid:
+            self.report({"ERROR"}, validation[-240:] or "SOLVET validation failed")
             return {"CANCELLED"}
         ok, output = _run(["promote", "--asset-name", asset.name, "--source-folder", source])
         if not ok:
