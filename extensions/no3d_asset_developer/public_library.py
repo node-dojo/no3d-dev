@@ -50,7 +50,10 @@ def _paths():
     return repo, library, workflow
 
 
-def _linked_product(asset_name: str):
+def _linked_product(asset_or_name):
+    asset = asset_or_name if not isinstance(asset_or_name, str) else None
+    asset_name = asset.name if asset is not None else asset_or_name
+    stable_product_id = str(asset.get("no3d_product_id", "")) if asset is not None else ""
     _repo, library, _workflow = _paths()
     if not library or not os.path.isdir(library):
         return None
@@ -72,10 +75,13 @@ def _linked_product(asset_name: str):
                     data = json.load(handle)
             except (OSError, json.JSONDecodeError):
                 continue
-            if asset_name in (
+            product_id = ((data.get("metadata") or {}).get("solvet") or {}).get("product_id", "")
+            if (stable_product_id and product_id == stable_product_id) or asset_name in (
                 data.get("handle"), data.get("title"),
                 (data.get("dashboard") or {}).get("blender_asset_name"),
             ):
+                if asset is not None and product_id and not stable_product_id:
+                    asset["no3d_product_id"] = product_id
                 return {**data, "_json_path": path, "_folder_path": folder}
     return None
 
@@ -313,7 +319,7 @@ class NO3D_OT_edit_release_notes(Operator):
 
     def execute(self, context):
         asset = _active_asset(context)
-        product = _linked_product(asset.name) if asset else None
+        product = _linked_product(asset) if asset else None
         if not product:
             self.report({"ERROR"}, "Select a linked public product")
             return {"CANCELLED"}
@@ -415,7 +421,7 @@ def _sync_current_to_wip(asset) -> tuple[bool, str, str]:
 
 
 def stage_linked_asset(asset, quiet: bool = False, export_first: bool = True) -> tuple[bool, str]:
-    linked = _linked_product(asset.name)
+    linked = _linked_product(asset)
     if not linked:
         return False, "Asset is not linked to a public product"
     if export_first:
@@ -426,7 +432,8 @@ def stage_linked_asset(asset, quiet: bool = False, export_first: bool = True) ->
         source = os.path.join(wip_sync.get_wip_folder(), asset.name)
         if not os.path.isdir(source):
             return False, "WIP stage source is unavailable"
-    ok, output = _run(["stage", "--asset-name", asset.name, "--product", linked["handle"], "--source-folder", source])
+    product_id = ((linked.get("metadata") or {}).get("solvet") or {}).get("product_id")
+    ok, output = _run(["stage", "--asset-name", asset.name, "--product", product_id or linked["handle"], "--source-folder", source])
     if ok:
         bpy.context.window_manager.no3d_public_status = f"Staged {asset.name} locally"
     elif not quiet:
@@ -453,6 +460,12 @@ class NO3D_OT_promote_public_draft(Operator):
         if not ok:
             self.report({"ERROR"}, output[-240:] or "Promotion failed")
             return {"CANCELLED"}
+        try:
+            receipt = next(json.loads(line) for line in reversed(output.splitlines()) if line.startswith("{"))
+            if receipt.get("product_id"):
+                asset["no3d_product_id"] = receipt["product_id"]
+        except (StopIteration, json.JSONDecodeError):
+            pass
         context.window_manager.no3d_public_status = f"Draft created for {asset.name}; nothing published"
         self.report({"INFO"}, f"Created public draft for {asset.name}")
         return {"FINISHED"}
@@ -479,7 +492,7 @@ class NO3D_OT_stage_public_update(Operator):
 
 class NO3D_OT_preview_public_update(Operator):
     bl_idname = "no3d.preview_public_update"
-    bl_label = "Review & Publish Update"
+    bl_label = "Share / Publish — Review"
     bl_description = "Run read-only remote checks and create a content-bound publish plan"
     bl_options = {"REGISTER"}
 
@@ -488,7 +501,7 @@ class NO3D_OT_preview_public_update(Operator):
         if not asset:
             self.report({"ERROR"}, "Select a marked asset first")
             return {"CANCELLED"}
-        linked = _linked_product(asset.name)
+        linked = _linked_product(asset)
         if not linked:
             self.report({"ERROR"}, "Promote this asset to a public draft first")
             return {"CANCELLED"}
@@ -527,7 +540,7 @@ class NO3D_OT_activate_public_product(Operator):
 
     def execute(self, context):
         asset = _active_asset(context)
-        linked = _linked_product(asset.name) if asset else None
+        linked = _linked_product(asset) if asset else None
         if not linked:
             self.report({"ERROR"}, "No linked public draft selected")
             return {"CANCELLED"}
@@ -542,7 +555,7 @@ class NO3D_OT_activate_public_product(Operator):
 
 class NO3D_OT_publish_public_update(Operator):
     bl_idname = "no3d.publish_public_update"
-    bl_label = "Publish This Product"
+    bl_label = "Share / Publish"
     bl_description = "Publish the exact unchanged version represented by the reviewed plan"
     bl_options = {"REGISTER"}
 
@@ -559,7 +572,7 @@ class NO3D_OT_publish_public_update(Operator):
             self.report({"ERROR"}, "Run Review & Publish Update first")
             return {"CANCELLED"}
         asset = _active_asset(context)
-        linked = _linked_product(asset.name) if asset else None
+        linked = _linked_product(asset) if asset else None
         reviewed_product = context.window_manager.no3d_public_publish_product
         if not linked or linked.get("title", asset.name) != reviewed_product:
             self.report({"ERROR"}, f"This plan belongs to {reviewed_product or 'another product'}")
@@ -584,7 +597,7 @@ def _stage_linked_on_save(_dummy):
     if prefs and not getattr(prefs, "public_auto_stage", True):
         return
     asset = _active_asset(bpy.context)
-    if asset and _linked_product(asset.name):
+    if asset and _linked_product(asset):
         try:
             stage_linked_asset(asset, quiet=True, export_first=False)
         except Exception:
