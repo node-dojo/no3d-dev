@@ -26,6 +26,7 @@ import bpy
 from bpy.app.handlers import persistent
 
 from . import extraction_methods
+from . import library_roles
 from . import utils
 from .notes import note_manager
 
@@ -189,6 +190,10 @@ def sync_one(asset, wip_folder: str, prefs=None) -> tuple[bool, str]:
     """
     if not wip_folder:
         return False, "WIP folder not set"
+    try:
+        library_roles.require_wip(wip_folder)
+    except ValueError as exc:
+        return False, str(exc)
     if asset is None or not getattr(asset, "asset_data", None):
         return False, "Not an asset"
 

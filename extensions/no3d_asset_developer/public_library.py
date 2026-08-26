@@ -17,7 +17,7 @@ from bpy.app.handlers import persistent
 from bpy.props import BoolProperty, CollectionProperty, IntProperty, StringProperty
 from bpy.types import Operator, Panel, PropertyGroup, UIList
 
-from . import wip_sync
+from . import library_roles, wip_sync
 
 log = logging.getLogger(__name__)
 PLAN_RE = re.compile(r"NO3D_PUBLISH_PLAN=([0-9a-f-]{36})", re.IGNORECASE)
@@ -396,6 +396,10 @@ def _run(args: list[str]) -> tuple[bool, str]:
         return False, "SOLVET repository is not configured"
     if not library or not os.path.isdir(library):
         return False, "Public product library is not configured"
+    try:
+        library_roles.require_staged(library)
+    except ValueError as exc:
+        return False, str(exc)
     if not os.path.isfile(workflow):
         return False, f"Product workflow not found: {workflow}"
     doppler = shutil.which("doppler") or "/opt/homebrew/bin/doppler"

@@ -37,6 +37,7 @@ paths = [
   "ui.py",
   "utils.py",
   "wip_sync.py",
+  "library_roles.py",
   "public_library.py",
   "extraction_methods.py",
   "blend_export.py",
