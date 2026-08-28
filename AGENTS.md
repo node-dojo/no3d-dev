@@ -21,6 +21,8 @@ with its own manifest, `AddonPreferences`, version, and release cadence.
 
 Extensions currently in the repo:
 
+- `agent_bridge` — routes agents to the intended live Blender instance;
+  vendored from `github.com/node-dojo/agent-bridge`
 - `no3d_asset_developer` — asset export pipeline; currently still bundles
   Save & Reload and Claude Pair as internal subpackages (unmerge planned in
   Steps 4–5 of the monorepo restructure)
@@ -169,7 +171,8 @@ subdir = "no3d_camera_utilities"
 - **`.vendor_last_sync`** sentinel file records the last-synced upstream
   commit; committed to git for reviewability.
 
-Currently vendored: `no3d_camera_utilities` ← `github.com/node-dojo/no3d-camera-utilities`.
+Currently vendored: `agent_bridge` ← `github.com/node-dojo/agent-bridge`, and
+`no3d_camera_utilities` ← `github.com/node-dojo/no3d-camera-utilities`.
 
 ## Ship pipeline
 

@@ -21,3 +21,8 @@
 source = "https://github.com/node-dojo/no3d-camera-utilities.git"
 ref = "main"
 subdir = "no3d_camera_utilities"
+
+[agent_bridge]
+source = "https://github.com/node-dojo/agent-bridge.git"
+ref = "master"
+subdir = "agent_bridge"
