@@ -653,195 +653,6 @@ class NO3D_OT_open_asset_location(Operator):
 
 
 # ===================================================================
-# Dependency scanning & cleanup (retained from v1)
-# ===================================================================
-
-class NO3D_OT_scan_asset_dependencies(Operator):
-    """Scan the selected asset for problematic dependencies"""
-    bl_idname = "asset.scan_dependencies_no3d"
-    bl_label = "Scan Dependencies"
-    bl_description = "Scan the selected asset for dependencies on other assets"
-    bl_options = {"REGISTER", "UNDO"}
-
-    def execute(self, context):
-        asset = _get_active_asset(context)
-        if not asset:
-            self.report({"WARNING"}, "No asset selected.")
-            return {"CANCELLED"}
-
-        dependencies = utils.detect_asset_dependencies(asset)
-
-        wm = context.window_manager
-        dep_list = []
-        for dep in dependencies:
-            dep_list.append({
-                "dependency_name": dep["dependency"].name,
-                "dependency_type": type(dep["dependency"]).__name__,
-                "type": dep["type"],
-                "relationship": dep["relationship"],
-                "severity": dep["severity"],
-                "action_available": dep["action_available"],
-                "node_name": dep.get("node_name", ""),
-                "modifier_name": dep.get("modifier_name", ""),
-            })
-
-        wm["no3d_asset_dependencies"] = dep_list
-        wm["no3d_scanned_asset_name"] = asset.name
-        wm["no3d_scanned_asset_type"] = type(asset).__name__
-
-        if dependencies:
-            self.report({"INFO"}, f"Found {len(dependencies)} dependency issue(s)")
-        else:
-            self.report({"INFO"}, "No problematic dependencies found")
-
-        return {"FINISHED"}
-
-
-class NO3D_OT_isolate_node_group_dependency(Operator):
-    """Isolate a NodeGroup dependency by creating a non-asset copy"""
-    bl_idname = "asset.isolate_node_group_no3d"
-    bl_label = "Isolate NodeGroup"
-    bl_description = "Create an isolated copy of this NodeGroup dependency"
-    bl_options = {"REGISTER", "UNDO"}
-
-    dependency_name: StringProperty(name="Dependency Name")
-    dependency_type: StringProperty(name="Dependency Type")
-    node_name: StringProperty(name="Node Name", default="")
-    modifier_name: StringProperty(name="Modifier Name", default="")
-
-    def execute(self, context):
-        asset = _get_active_asset(context)
-        if not asset:
-            self.report({"ERROR"}, "No asset selected.")
-            return {"CANCELLED"}
-
-        dependency = None
-        if self.dependency_type == "NodeGroup" and self.dependency_name in bpy.data.node_groups:
-            dependency = bpy.data.node_groups[self.dependency_name]
-
-        if not dependency:
-            self.report({"ERROR"}, f"Dependency '{self.dependency_name}' not found")
-            return {"CANCELLED"}
-
-        isolated_ng = utils.isolate_node_group(dependency, asset.name)
-        asset_type = type(asset).__name__
-
-        if asset_type == "NodeGroup" and hasattr(asset, "nodes"):
-            for node in asset.nodes:
-                if hasattr(node, "node_tree") and node.node_tree == dependency:
-                    node.node_tree = isolated_ng
-                    self.report({"INFO"}, f"Isolated NodeGroup in node '{node.name}'")
-                    break
-        elif asset_type == "Object" and self.modifier_name and hasattr(asset, "modifiers"):
-            for mod in asset.modifiers:
-                if mod.name == self.modifier_name and mod.type == "NODES":
-                    if hasattr(mod, "node_group") and mod.node_group == dependency:
-                        mod.node_group = isolated_ng
-                        self.report({"INFO"}, f"Isolated NodeGroup in modifier '{mod.name}'")
-                        break
-
-        bpy.ops.asset.scan_dependencies_no3d()
-        return {"FINISHED"}
-
-
-class NO3D_OT_remove_dependency(Operator):
-    """Remove or break a dependency reference"""
-    bl_idname = "asset.remove_dependency_no3d"
-    bl_label = "Remove Dependency"
-    bl_description = "Remove or break this dependency reference"
-    bl_options = {"REGISTER", "UNDO"}
-
-    dependency_name: StringProperty(name="Dependency Name")
-    dependency_type: StringProperty(name="Dependency Type")
-    relationship: StringProperty(name="Relationship")
-    modifier_name: StringProperty(name="Modifier Name", default="")
-
-    def execute(self, context):
-        asset = _get_active_asset(context)
-        if not asset:
-            self.report({"ERROR"}, "No asset selected.")
-            return {"CANCELLED"}
-
-        asset_type = type(asset).__name__
-
-        if self.relationship == "modifier_reference" and self.modifier_name:
-            if hasattr(asset, "modifiers"):
-                for mod in asset.modifiers:
-                    if mod.name == self.modifier_name:
-                        asset.modifiers.remove(mod)
-                        self.report({"INFO"}, f"Removed modifier '{self.modifier_name}'")
-                        break
-        elif self.relationship == "nested_node_group":
-            if asset_type == "NodeGroup" and hasattr(asset, "nodes"):
-                for node in asset.nodes:
-                    if hasattr(node, "node_tree") and node.node_tree:
-                        if node.node_tree.name == self.dependency_name:
-                            node.node_tree = None
-                            self.report({"INFO"}, f"Broke NodeGroup reference in '{node.name}'")
-                            break
-
-        bpy.ops.asset.scan_dependencies_no3d()
-        return {"FINISHED"}
-
-
-class NO3D_OT_clean_all_dependencies(Operator):
-    """Automatically clean all detected dependencies"""
-    bl_idname = "asset.clean_all_dependencies_no3d"
-    bl_label = "Clean All Dependencies"
-    bl_description = "Automatically resolve all detected dependency issues"
-    bl_options = {"REGISTER", "UNDO"}
-
-    def execute(self, context):
-        asset = _get_active_asset(context)
-        if not asset:
-            self.report({"ERROR"}, "No asset selected.")
-            return {"CANCELLED"}
-
-        dependencies = utils.detect_asset_dependencies(asset)
-        if not dependencies:
-            self.report({"INFO"}, "No dependencies to clean")
-            return {"FINISHED"}
-
-        cleaned = 0
-        for dep in dependencies:
-            action = dep["action_available"]
-            relationship = dep["relationship"]
-
-            if dep["type"] == "NodeGroup" and action == "isolate":
-                dependency = dep["dependency"]
-                isolated_ng = utils.isolate_node_group(dependency, asset.name)
-                asset_type = type(asset).__name__
-
-                if asset_type == "NodeGroup" and hasattr(asset, "nodes"):
-                    for node in asset.nodes:
-                        if hasattr(node, "node_tree") and node.node_tree == dependency:
-                            node.node_tree = isolated_ng
-                            cleaned += 1
-                            break
-                elif relationship == "modifier_reference" and hasattr(asset, "modifiers"):
-                    mod_name = dep.get("modifier_name", "")
-                    for mod in asset.modifiers:
-                        if mod.name == mod_name and mod.type == "NODES":
-                            if hasattr(mod, "node_group") and mod.node_group == dependency:
-                                mod.node_group = isolated_ng
-                                cleaned += 1
-                                break
-
-            elif action == "remove" and relationship == "modifier_reference":
-                if hasattr(asset, "modifiers"):
-                    mod_name = dep.get("modifier_name", "")
-                    for mod in asset.modifiers:
-                        if mod.name == mod_name:
-                            asset.modifiers.remove(mod)
-                            cleaned += 1
-                            break
-
-        bpy.ops.asset.scan_dependencies_no3d()
-        self.report({"INFO"}, f"Cleaned {cleaned} dependency issue(s)")
-        return {"FINISHED"}
-
-
-# ===================================================================
 # v3.0 — Method-selectable extraction (Method A / Method B)
 # ===================================================================
 
@@ -889,7 +700,7 @@ class NO3D_OT_extract_v3_active(Operator):
     """v3.0: Extract the active asset using the method selected in the N-panel."""
     bl_idname = "asset.extract_v3_active_no3d"
     bl_label = "Extract Active Asset (v3)"
-    bl_description = "Extract the active asset via the method chosen in the No3D Dev N-panel"
+    bl_description = "Extract the active asset via the method chosen in the NO3D Dev N-panel"
     bl_options = {"REGISTER", "UNDO"}
 
     directory: StringProperty(
@@ -935,7 +746,7 @@ class NO3D_OT_extract_v3_all(Operator):
     """v3.0: Extract all visible assets using the selected method."""
     bl_idname = "asset.extract_v3_all_no3d"
     bl_label = "Extract All Assets (v3)"
-    bl_description = "Extract all marked assets using the method chosen in the No3D Dev N-panel"
+    bl_description = "Extract all marked assets using the method chosen in the NO3D Dev N-panel"
     bl_options = {"REGISTER", "UNDO"}
 
     directory: StringProperty(
@@ -1084,7 +895,7 @@ class NO3D_OT_sync_wip_all(Operator):
 
     def execute(self, context):
         if not wip_sync.get_wip_folder():
-            self.report({"ERROR"}, "Set the WIP Folder in the No3D Dev N-panel first")
+            self.report({"ERROR"}, "Set the WIP Folder in the NO3D Dev N-panel first")
             return {"CANCELLED"}
 
         ok, fail, errors = wip_sync.sync_all()
@@ -1107,10 +918,6 @@ _classes = (
     NO3D_OT_export_thumbnails_only,
     NO3D_OT_open_asset_location,
     NO3D_OT_update_addon,
-    NO3D_OT_scan_asset_dependencies,
-    NO3D_OT_isolate_node_group_dependency,
-    NO3D_OT_remove_dependency,
-    NO3D_OT_clean_all_dependencies,
     NO3D_OT_extract_v3_active,
     NO3D_OT_extract_v3_all,
     NO3D_OT_open_wip_folder,

@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "no3d_asset_developer"
-version = "4.1.6"
+version = "4.5.0"
 name = "No3d Asset Developer"
 tagline = "Export clean per-asset .blend files with metadata & thumbnails"
 maintainer = "Joe Bowers <joe@welltarot.com>"
@@ -26,7 +26,6 @@ copyright = [
 # (Method A) export pipeline.
 [permissions]
 files = "Export asset .blend files, thumbnails, and metadata to disk"
-network = "Starts the official Blender MCP bridge server on localhost"
 
 # Only ship what the add-on needs at runtime. Dev-only files (tests, demos,
 # planning docs, node dumps, marketing art) are intentionally excluded.
@@ -46,11 +45,28 @@ paths = [
   "aspect_overlay.py",
   "clipboard_paste.py",
   "repo_registration.py",
+  "power_panel/__init__.py",
+  "power_panel/activation.py",
+  "power_panel/config.py",
+  "power_panel/discovery.py",
+  "power_panel/filter.py",
+  "power_panel/keymaps.py",
+  "power_panel/order.py",
+  "power_panel/pie.py",
+  "power_panel/preferences.py",
+  "power_panel/router.py",
+  "power_panel/search.py",
+  "power_panel/slots.py",
   "editor_screenshot.py",
+  "embed_staging.py",
   "header_screenshots.py",
+  "geonode_object.py",
   "node_screenshot.py",
   "viewport_format.py",
+  "viewport_shortcuts.py",
   "viewport_screenshot.py",
+  "transparent_media.py",
+  "stowaway_inspector.py",
   "notes/__init__.py",
   "notes/note_manager.py",
   "wip/__init__.py",
@@ -58,12 +74,6 @@ paths = [
   "wip/toolbox.py",
   "wip/align.py",
   "wip/make_spin.py",
-  "claude_pair/__init__.py",
-  "claude_pair/pair.py",
-  "claude_pair/registry.py",
-  "save_reload/__init__.py",
-  "save_reload/save_op.py",
-  "save_reload/helper.py",
 ]
 
 # LICENSE and README.md live at the outer monorepo root

@@ -1,5 +1,10 @@
 # Merge Claude Pair + Save & Reload into No3d Asset Developer
 
+> **Historical and superseded (2026-08-28):** This records the July 2026 merge
+> that was implemented at the time. Claude Pair is now retired and superseded
+> by Agent Bridge. Save & Reload is now an independent No3d Dev extension.
+> Do not execute this document as current architecture.
+
 **Date:** 2026-07-08
 **Target repo:** `/Users/joebowers/Projects/no3d-asset-developer` → `github.com/node-dojo/no3d-asset-developer`
 **Version bump:** 3.1.0 → 3.2.0

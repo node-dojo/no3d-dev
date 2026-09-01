@@ -1,7 +1,7 @@
 bl_info = {
     "name": "No3d Camera Utilities",
     "author": "Hanuman + Cursor",
-    "version": (1, 0, 0),
+    "version": (1, 2, 0),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar > No3d Cam",
     "description": "2D/3D mesh camera tools, framing, and render utilities",
@@ -16,7 +16,7 @@ import platform
 import re
 import shutil
 import subprocess
-from bpy.props import BoolProperty, FloatProperty, IntProperty
+from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty
 from bpy_extras.object_utils import world_to_camera_view
 from mathutils import Vector
 
@@ -72,12 +72,9 @@ HOTKEY_TYPES = (
 )
 
 PIE_ACTIONS = (
-    ("make_2d", "Make 2D Mesh Camera", "object.make_mesh_camera", "CAMERA_DATA"),
-    ("refresh_2d", "Refresh 2D Mesh Camera", "object.refresh_mesh_camera", "FILE_REFRESH"),
-    ("make_3d", "Make 3D Mesh Camera", "object.make_3d_mesh_camera", "VIEW_CAMERA"),
-    ("make_3d_marquee", "Make 3D Mesh Camera (Marquee)", "object.make_3d_mesh_camera_marquee", "VIEWZOOM"),
-    ("draw_3d_plane", "Draw 3D Framing Plane", "object.make_3d_framing_plane_marquee", "SELECT_SET"),
-    ("refresh_3d_plane", "Refresh 3D Camera From Plane", "object.refresh_3d_camera_from_plane", "FILE_REFRESH"),
+    ("make_2d", "Fit Selected Mesh — Orthographic", "object.make_mesh_camera", "CAMERA_DATA"),
+    ("refresh_2d", "Refresh Selected Mesh Fit", "object.refresh_mesh_camera", "FILE_REFRESH"),
+    ("make_3d_marquee", "Draw Camera Frame", "view3d.draw_camera_frame", "VIEWZOOM"),
     ("one_shot", "One-Shot Selected Mesh(es)", "object.one_shot_selected_mesh", "PLAY"),
     ("render_2d", "Render Mesh Camera", "object.render_mesh_camera", "RENDER_STILL"),
     ("render_3d", "Render Active 3D Camera", "object.render_active_3d_camera", "RENDER_ANIMATION"),
@@ -498,6 +495,231 @@ def set_camera_resolution_from_aspect(cam_obj, target_aspect, long_edge_px=DEFAU
     return res_x, res_y
 
 
+def _unproject(inv_perspective_matrix, x_ndc, y_ndc, z_ndc):
+    world_h = inv_perspective_matrix @ Vector((x_ndc, y_ndc, z_ndc, 1.0))
+    if abs(world_h.w) > 1e-12:
+        world_h /= world_h.w
+    return world_h.xyz
+
+
+def _marquee_corners_world(perspective_matrix, region_size, rect_pixels):
+    """Return BL, BR, TR, TL points unprojected onto the clip-space mid-plane."""
+    region_w, region_h = region_size
+    left, bottom, right, top = rect_pixels
+    inv = perspective_matrix.inverted()
+
+    def point(x, y):
+        x_ndc = 2.0 * float(x) / max(1.0, float(region_w)) - 1.0
+        y_ndc = 2.0 * float(y) / max(1.0, float(region_h)) - 1.0
+        return _unproject(inv, x_ndc, y_ndc, 0.0)
+
+    return (
+        point(left, bottom),
+        point(right, bottom),
+        point(right, top),
+        point(left, top),
+    )
+
+
+def _camera_frame_bounds(cam_data, scene):
+    frame = cam_data.view_frame(scene=scene)
+    xs = [v.x / max(1e-12, -v.z) for v in frame]
+    ys = [v.y / max(1e-12, -v.z) for v in frame]
+    return min(xs), max(xs), min(ys), max(ys)
+
+
+def _camera_frame_center(cam_data, scene):
+    min_x, max_x, min_y, max_y = _camera_frame_bounds(cam_data, scene)
+    return 0.5 * (min_x + max_x), 0.5 * (min_y + max_y)
+
+
+def configure_camera_from_view_marquee(
+    scene,
+    cam_obj,
+    view_matrix,
+    perspective_matrix,
+    region_size,
+    rect_pixels,
+    projection,
+    viewport_lens,
+    clip_start,
+    clip_end,
+    viewport_distance=0.0,
+    long_edge_px=DEFAULT_LONG_EDGE_PX,
+):
+    """Make the camera's complete render frame equal the viewport marquee.
+
+    The marquee, not selected geometry, is authoritative. The viewport pose is
+    preserved; perspective crops are represented by lens and camera shift,
+    while orthographic crops are represented by camera XY and ortho scale.
+    """
+    region_w, region_h = region_size
+    left, bottom, right, top = rect_pixels
+    pixel_w = max(1.0, float(right - left))
+    pixel_h = max(1.0, float(top - bottom))
+    aspect = pixel_w / pixel_h
+
+    cam_obj.matrix_world = view_matrix.inverted()
+    cam_data = cam_obj.data
+    cam_data.clip_start = max(1e-6, float(clip_start))
+    cam_data.clip_end = max(cam_data.clip_start + 1e-6, float(clip_end))
+    cam_data.shift_x = 0.0
+    cam_data.shift_y = 0.0
+    res_x, res_y = set_camera_resolution_from_aspect(cam_obj, aspect, long_edge_px)
+    apply_scene_resolution_from_camera(scene, cam_obj)
+
+    corners_world = _marquee_corners_world(
+        perspective_matrix,
+        (region_w, region_h),
+        (left, bottom, right, top),
+    )
+    cam_inv = cam_obj.matrix_world.inverted()
+
+    if projection == "ORTHO":
+        cam_data.type = "ORTHO"
+        # Blender's orthographic view matrix is centered on the navigation
+        # pivot rather than a meaningful eye point. Move the camera backward
+        # along its local Z axis so geometry on the viewport plane is in front
+        # of the camera instead of coplanar with it.
+        if viewport_distance > 0.0:
+            world_m = cam_obj.matrix_world.copy()
+            world_m.translation += world_m.to_3x3() @ Vector(
+                (0.0, 0.0, float(viewport_distance))
+            )
+            cam_obj.matrix_world = world_m
+            cam_inv = cam_obj.matrix_world.inverted()
+        local = [cam_inv @ point for point in corners_world]
+        min_x, max_x = min(p.x for p in local), max(p.x for p in local)
+        min_y, max_y = min(p.y for p in local), max(p.y for p in local)
+        width = max(1e-12, max_x - min_x)
+        height = max(1e-12, max_y - min_y)
+
+        cam_data.ortho_scale = 1.0
+        frame = cam_data.view_frame(scene=scene)
+        base_width = max(v.x for v in frame) - min(v.x for v in frame)
+        base_height = max(v.y for v in frame) - min(v.y for v in frame)
+        cam_data.ortho_scale = max(
+            width / max(1e-12, base_width),
+            height / max(1e-12, base_height),
+        )
+
+        center_local = Vector((0.5 * (min_x + max_x), 0.5 * (min_y + max_y), 0.0))
+        world_m = cam_obj.matrix_world.copy()
+        world_m.translation += world_m.to_3x3() @ center_local
+        cam_obj.matrix_world = world_m
+    else:
+        cam_data.type = "PERSP"
+        cam_data.lens_unit = "MILLIMETERS"
+        cam_data.sensor_fit = "AUTO"
+        cam_data.lens = max(1e-6, float(viewport_lens))
+
+        cam_pos = cam_obj.matrix_world.translation
+        rotation_inv = cam_obj.matrix_world.to_3x3().inverted()
+        slopes = []
+        for point in corners_world:
+            direction_local = rotation_inv @ (point - cam_pos)
+            denom = max(1e-12, -direction_local.z)
+            slopes.append((direction_local.x / denom, direction_local.y / denom))
+        min_x, max_x = min(p[0] for p in slopes), max(p[0] for p in slopes)
+        min_y, max_y = min(p[1] for p in slopes), max(p[1] for p in slopes)
+        target_width = max(1e-12, max_x - min_x)
+
+        base_min_x, base_max_x, _base_min_y, _base_max_y = _camera_frame_bounds(cam_data, scene)
+        base_width = max(1e-12, base_max_x - base_min_x)
+        cam_data.lens *= base_width / target_width
+
+        base_cx, base_cy = _camera_frame_center(cam_data, scene)
+        cam_data.shift_x = 1.0
+        x_cx, x_cy = _camera_frame_center(cam_data, scene)
+        cam_data.shift_x = 0.0
+        cam_data.shift_y = 1.0
+        y_cx, y_cy = _camera_frame_center(cam_data, scene)
+        cam_data.shift_y = 0.0
+
+        dx = 0.5 * (min_x + max_x) - base_cx
+        dy = 0.5 * (min_y + max_y) - base_cy
+        a, b = x_cx - base_cx, y_cx - base_cx
+        c, d = x_cy - base_cy, y_cy - base_cy
+        det = a * d - b * c
+        if abs(det) > 1e-12:
+            cam_data.shift_x = (dx * d - b * dy) / det
+            cam_data.shift_y = (a * dy - dx * c) / det
+
+    cam_obj[PAIR_RES_X] = int(res_x)
+    cam_obj[PAIR_RES_Y] = int(res_y)
+    cam_obj["no3d_camera_frame_projection"] = projection
+    cam_obj["no3d_camera_frame_rect_pixels"] = [
+        float(left), float(bottom), float(right), float(top)
+    ]
+    cam_obj["no3d_camera_frame_viewport_pixels"] = [int(region_w), int(region_h)]
+    return res_x, res_y, corners_world
+
+
+def camera_marquee_projection_error_px(scene, cam_obj, corners_world):
+    """Maximum corner mismatch in output pixels; used for acceptance checks."""
+    expected = ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0))
+    res_x = max(1, int(cam_obj.get(PAIR_RES_X, scene.render.resolution_x)))
+    res_y = max(1, int(cam_obj.get(PAIR_RES_Y, scene.render.resolution_y)))
+    max_error = 0.0
+    for point, (target_x, target_y) in zip(corners_world, expected):
+        projected = world_to_camera_view(scene, cam_obj, point)
+        max_error = max(
+            max_error,
+            abs(projected.x - target_x) * res_x,
+            abs(projected.y - target_y) * res_y,
+        )
+    return max_error
+
+
+def scene_units_for_millimeters(scene, millimeters):
+    """Convert a physical millimeter measurement to Blender scene units."""
+    scale_length = float(scene.unit_settings.scale_length)
+    if scene.unit_settings.system == "NONE" or scale_length <= 1e-12:
+        return float(millimeters)
+    return (float(millimeters) / 1000.0) / scale_length
+
+
+def object_world_bounds_center(obj):
+    if obj is None:
+        return None
+    if getattr(obj, "bound_box", None):
+        points = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+        if points:
+            return sum(points, Vector()) / len(points)
+    return obj.matrix_world.translation.copy()
+
+
+def create_thirds_guide(scene, camera_obj, center, size):
+    """Create a non-rendering 4x4 edge grid on the camera's subject plane."""
+    half = 0.5 * float(size)
+    thirds = (-half, -half / 3.0, half / 3.0, half)
+    vertices = []
+    edges = []
+    for x in thirds:
+        start = len(vertices)
+        vertices.extend(((x, -half, 0.0), (x, half, 0.0)))
+        edges.append((start, start + 1))
+    for y in thirds:
+        start = len(vertices)
+        vertices.extend(((-half, y, 0.0), (half, y, 0.0)))
+        edges.append((start, start + 1))
+
+    mesh = bpy.data.meshes.new("threes guide mesh")
+    mesh.from_pydata(vertices, edges, [])
+    mesh.update()
+    guide = bpy.data.objects.new("threes guide", mesh)
+    scene.collection.objects.link(guide)
+    guide.location = center
+    guide.display_type = "WIRE"
+    guide.show_in_front = True
+    guide.hide_render = True
+    guide["no3d_camera_guide"] = "thirds"
+    guide.parent = camera_obj
+    guide.matrix_parent_inverse.identity()
+    guide.location = (0.0, 0.0, -float(size))
+    return guide
+
+
 def camera_local_aspect_from_points(cam_obj, points):
     if not points:
         return 1.0
@@ -773,8 +995,8 @@ def create_or_update_framing_plane(context, cam_obj, rect_ndc, mesh_parent=None)
 
 class OBJECT_OT_make_mesh_camera(bpy.types.Operator):
     bl_idname = "object.make_mesh_camera"
-    bl_label = "Make 2D Mesh Camera"
-    bl_description = "Create an ortho camera aligned to the current viewport and fit to active mesh bounds"
+    bl_label = "Fit Selected Mesh — Orthographic"
+    bl_description = "Fit an orthographic camera to the active mesh's projected bounds"
     bl_options = {"REGISTER", "UNDO"}
 
     parent_to_mesh: BoolProperty(
@@ -871,8 +1093,132 @@ class OBJECT_OT_make_mesh_camera(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class OBJECT_OT_add_100mm_ortho_icon_camera(bpy.types.Operator):
+    bl_idname = "object.add_100mm_ortho_icon_camera"
+    bl_label = "100mm Ortho - Icon cam"
+    bl_description = "Add a top-down 100 mm orthographic icon camera with a parented thirds guide"
+    bl_options = {"REGISTER", "UNDO"}
+
+    placement: EnumProperty(
+        name="Placement",
+        items=(
+            ("AUTO", "Automatic", "Selected object, then viewport center, then world center"),
+            ("OBJECT", "Selected Object", "Center on the selected object's world bounds"),
+            ("VIEW", "Viewport Center", "Center on the current viewport navigation point"),
+            ("WORLD", "World Center", "Center on the world origin"),
+        ),
+        default="AUTO",
+    )
+
+    def _object_target(self, context):
+        obj = context.active_object
+        if obj is None or obj.type == "CAMERA":
+            return None
+        if obj.get("no3d_camera_guide") or obj.name.lower().startswith("threes guide"):
+            return None
+        return obj
+
+    def execute(self, context):
+        scene = context.scene
+        target = self._object_target(context)
+        placement = self.placement
+        if placement == "AUTO":
+            if target is not None:
+                placement = "OBJECT"
+            elif context.region_data is not None:
+                placement = "VIEW"
+            else:
+                placement = "WORLD"
+
+        if placement == "OBJECT":
+            if target is None:
+                self.report({"ERROR"}, "Select a non-camera object for object-centered placement.")
+                return {"CANCELLED"}
+            center = object_world_bounds_center(target)
+        elif placement == "VIEW":
+            if context.region_data is None:
+                self.report({"ERROR"}, "Viewport-centered placement requires a 3D Viewport.")
+                return {"CANCELLED"}
+            center = context.region_data.view_location.copy()
+        else:
+            center = Vector((0.0, 0.0, 0.0))
+
+        size = scene_units_for_millimeters(scene, 100.0)
+        cam_data = bpy.data.cameras.new("100mm Ortho - Icon cam data")
+        cam_obj = bpy.data.objects.new("100mm Ortho - Icon cam", cam_data)
+        scene.collection.objects.link(cam_obj)
+        guide = None
+        try:
+            cam_data.type = "ORTHO"
+            cam_data.ortho_scale = size
+            cam_data.display_size = max(size * 0.05, 0.01)
+            cam_data.show_passepartout = True
+            cam_data.clip_start = max(size * 0.001, 1e-6)
+            cam_data.clip_end = max(size * 100.0, size + 1.0)
+            cam_obj.location = (center.x, center.y, center.z + size)
+            cam_obj.rotation_euler = (0.0, 0.0, 0.0)
+            cam_obj["no3d_camera_preset"] = "100mm_ortho_icon_cam"
+            cam_obj["no3d_camera_placement"] = placement
+            if target is not None and placement == "OBJECT":
+                cam_obj["no3d_camera_subject"] = target.name
+
+            guide = create_thirds_guide(scene, cam_obj, center, size)
+            scene.render.resolution_x = 2048
+            scene.render.resolution_y = 2048
+            scene.render.resolution_percentage = 100
+            scene.render.pixel_aspect_x = 1.0
+            scene.render.pixel_aspect_y = 1.0
+            cam_obj[PAIR_RES_X] = 2048
+            cam_obj[PAIR_RES_Y] = 2048
+            scene.camera = cam_obj
+
+            bpy.ops.object.select_all(action="DESELECT")
+            cam_obj.select_set(True)
+            context.view_layer.objects.active = cam_obj
+        except Exception as exc:
+            if guide is not None and guide.name in bpy.data.objects:
+                guide_mesh = guide.data
+                bpy.data.objects.remove(guide, do_unlink=True)
+                if guide_mesh is not None and guide_mesh.users == 0:
+                    bpy.data.meshes.remove(guide_mesh)
+            if cam_obj.name in bpy.data.objects:
+                bpy.data.objects.remove(cam_obj, do_unlink=True)
+            if cam_data.name in bpy.data.cameras:
+                bpy.data.cameras.remove(cam_data)
+            self.report({"ERROR"}, f"Could not add icon camera: {exc}")
+            return {"CANCELLED"}
+
+        self.report(
+            {"INFO"},
+            f"Added {cam_obj.name} at {placement.lower()} center with parented thirds guide.",
+        )
+        return {"FINISHED"}
+
+
+class VIEW3D_MT_no3d_camera_presets(bpy.types.Menu):
+    bl_idname = "VIEW3D_MT_no3d_camera_presets"
+    bl_label = "Add Camera Preset"
+
+    def draw(self, _context):
+        layout = self.layout
+        layout.label(text="100mm Ortho - Icon cam", icon="CAMERA_DATA")
+        op = layout.operator(
+            "object.add_100mm_ortho_icon_camera",
+            text="Automatic Placement",
+            icon="ADD",
+        )
+        op.placement = "AUTO"
+        layout.separator()
+        op = layout.operator("object.add_100mm_ortho_icon_camera", text="Center on Selected Object")
+        op.placement = "OBJECT"
+        op = layout.operator("object.add_100mm_ortho_icon_camera", text="Center on View")
+        op.placement = "VIEW"
+        op = layout.operator("object.add_100mm_ortho_icon_camera", text="Center on World")
+        op.placement = "WORLD"
+
+
 class VIEW3D_PT_make_mesh_camera_2d(bpy.types.Panel):
-    bl_label = "2D Mesh Camera"
+    bl_label = "Selected Mesh Fit"
     bl_idname = "VIEW3D_PT_make_mesh_camera_2d"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
@@ -885,7 +1231,7 @@ class VIEW3D_PT_make_mesh_camera_2d(bpy.types.Panel):
 
 
 class VIEW3D_PT_make_mesh_camera_3d(bpy.types.Panel):
-    bl_label = "3D Mesh Camera"
+    bl_label = "Camera Framing"
     bl_idname = "VIEW3D_PT_make_mesh_camera_3d"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
@@ -893,14 +1239,11 @@ class VIEW3D_PT_make_mesh_camera_3d(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
-        layout.prop(scene, SCENE_3D_BUFFER_PCT, text="3D Boundary Buffer %")
-        layout.prop(scene, SCENE_3D_USE_CONVEX_HULL, text="Use Convex Hull Fast Fit?")
-        layout.operator("object.make_3d_mesh_camera", icon="VIEW_CAMERA")
-        try:
-            layout.operator("object.make_3d_mesh_camera_marquee", icon="VIEWZOOM")
-        except Exception:
-            pass
+        layout.menu("VIEW3D_MT_no3d_camera_presets", icon="ADD")
+        layout.separator()
+        layout.operator("view3d.draw_camera_frame", icon="VIEWZOOM")
+        layout.label(text="Viewport + boundary define the complete image.", icon="INFO")
+        layout.label(text="Selection is optional and never changes framing.")
 
 
 class VIEW3D_PT_make_mesh_camera_3d_framing_plane(bpy.types.Panel):
@@ -1431,6 +1774,222 @@ class OBJECT_OT_one_shot_selected_mesh(bpy.types.Operator):
                 pass
 
 
+class VIEW3D_OT_draw_camera_frame(bpy.types.Operator):
+    bl_idname = "view3d.draw_camera_frame"
+    bl_label = "Draw Camera Frame"
+    bl_description = (
+        "Draw an output boundary in the current viewport and create a camera "
+        "whose complete render frame matches it exactly"
+    )
+    bl_options = {"REGISTER", "UNDO"}
+
+    long_edge_px: IntProperty(
+        name="Long Edge (px)",
+        default=DEFAULT_LONG_EDGE_PX,
+        min=16,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return (
+            context.area is not None
+            and context.area.type == "VIEW_3D"
+            and context.region is not None
+            and context.region.type == "WINDOW"
+            and context.region_data is not None
+            and context.space_data is not None
+            and context.space_data.type == "VIEW_3D"
+        )
+
+    def _remove_draw_handler(self):
+        if getattr(self, "_draw_handle", None) is not None:
+            bpy.types.SpaceView3D.draw_handler_remove(self._draw_handle, "WINDOW")
+            self._draw_handle = None
+
+    def _finish_interaction(self, context):
+        self._remove_draw_handler()
+        try:
+            context.window.cursor_modal_restore()
+        except Exception:
+            pass
+
+    def _draw_callback(self, _context):
+        if not getattr(self, "_dragging", False):
+            return
+        x0, y0 = self._start
+        x1, y1 = self._end
+        left, right = min(x0, x1), max(x0, x1)
+        bottom, top = min(y0, y1), max(y0, y1)
+        try:
+            import gpu
+            from gpu_extras.batch import batch_for_shader
+
+            shader = gpu.shader.from_builtin("UNIFORM_COLOR")
+            verts = [(left, bottom), (right, bottom), (right, top), (left, top)]
+            lines = (
+                verts[0], verts[1],
+                verts[1], verts[2],
+                verts[2], verts[3],
+                verts[3], verts[0],
+            )
+            batch = batch_for_shader(shader, "LINES", {"pos": lines})
+            shader.bind()
+            shader.uniform_float("color", (1.0, 0.85, 0.2, 1.0))
+            batch.draw(shader)
+        except Exception:
+            pass
+
+    def invoke(self, context, event):
+        rv3d = context.region_data
+        self._view_matrix = rv3d.view_matrix.copy()
+        self._perspective_matrix = rv3d.perspective_matrix.copy()
+        self._region_size = (int(context.region.width), int(context.region.height))
+        self._viewport_lens = float(context.space_data.lens)
+        self._clip_start = float(context.space_data.clip_start)
+        self._clip_end = float(context.space_data.clip_end)
+        self._viewport_distance = float(rv3d.view_distance)
+        self._projection = "ORTHO" if rv3d.view_perspective == "ORTHO" else "PERSP"
+        if rv3d.view_perspective == "CAMERA" and context.scene.camera is not None:
+            self._projection = "ORTHO" if context.scene.camera.data.type == "ORTHO" else "PERSP"
+
+        self._start = (event.mouse_region_x, event.mouse_region_y)
+        self._end = self._start
+        self._dragging = False
+        self._moving = False
+        self._draw_handle = bpy.types.SpaceView3D.draw_handler_add(
+            self._draw_callback,
+            (context,),
+            "WINDOW",
+            "POST_PIXEL",
+        )
+        context.window_manager.modal_handler_add(self)
+        context.window.cursor_modal_set("CROSSHAIR")
+        context.area.tag_redraw()
+        self.report(
+            {"INFO"},
+            f"Draw the complete camera frame ({self._projection.lower()} viewport). Esc to cancel.",
+        )
+        return {"RUNNING_MODAL"}
+
+    def modal(self, context, event):
+        if event.type in {"ESC", "RIGHTMOUSE"}:
+            self._finish_interaction(context)
+            context.area.tag_redraw()
+            self.report({"INFO"}, "Draw Camera Frame cancelled; no camera created.")
+            return {"CANCELLED"}
+
+        if event.type == "LEFTMOUSE" and event.value == "PRESS":
+            self._start = (event.mouse_region_x, event.mouse_region_y)
+            self._end = self._start
+            self._dragging = True
+            self._moving = False
+            context.area.tag_redraw()
+            return {"RUNNING_MODAL"}
+
+        if event.type == "SPACE" and self._dragging:
+            if event.value == "PRESS" and not self._moving:
+                self._moving = True
+                self._move_mouse = (event.mouse_region_x, event.mouse_region_y)
+                self._move_start = self._start
+                self._move_end = self._end
+            elif event.value == "RELEASE":
+                self._moving = False
+            return {"RUNNING_MODAL"}
+
+        if event.type == "MOUSEMOVE" and self._dragging:
+            if self._moving:
+                region_w, region_h = self._region_size
+                dx = event.mouse_region_x - self._move_mouse[0]
+                dy = event.mouse_region_y - self._move_mouse[1]
+                sx, sy = self._move_start
+                ex, ey = self._move_end
+                min_x, max_x = min(sx, ex), max(sx, ex)
+                min_y, max_y = min(sy, ey), max(sy, ey)
+                dx = max(-min_x, min(region_w - max_x, dx))
+                dy = max(-min_y, min(region_h - max_y, dy))
+                self._start = (sx + dx, sy + dy)
+                self._end = (ex + dx, ey + dy)
+            else:
+                self._end = (event.mouse_region_x, event.mouse_region_y)
+            context.area.tag_redraw()
+            return {"RUNNING_MODAL"}
+
+        if event.type == "LEFTMOUSE" and event.value == "RELEASE" and self._dragging:
+            self._dragging = False
+            region_w, region_h = self._region_size
+            x0, y0 = self._start
+            x1, y1 = self._end
+            left, right = sorted((max(0, min(region_w, x0)), max(0, min(region_w, x1))))
+            bottom, top = sorted((max(0, min(region_h, y0)), max(0, min(region_h, y1))))
+            if (right - left) < 8 or (top - bottom) < 8:
+                self._finish_interaction(context)
+                context.area.tag_redraw()
+                self.report({"ERROR"}, "Camera frame is too small. Drag a larger rectangle.")
+                return {"CANCELLED"}
+
+            target = get_selected_mesh_target(context)
+            suffix = target.name if target is not None else "View"
+            cam_data = bpy.data.cameras.new(name=f"DrawCameraFrameData_{suffix}")
+            cam_obj = bpy.data.objects.new(name=f"DrawCameraFrame_{suffix}", object_data=cam_data)
+            context.scene.collection.objects.link(cam_obj)
+            try:
+                res_x, res_y, corners = configure_camera_from_view_marquee(
+                    context.scene,
+                    cam_obj,
+                    self._view_matrix,
+                    self._perspective_matrix,
+                    self._region_size,
+                    (left, bottom, right, top),
+                    self._projection,
+                    self._viewport_lens,
+                    self._clip_start,
+                    self._clip_end,
+                    self._viewport_distance,
+                    self.long_edge_px,
+                )
+                error_px = camera_marquee_projection_error_px(context.scene, cam_obj, corners)
+                cam_obj["no3d_camera_frame_error_px"] = float(error_px)
+                if target is not None:
+                    # Subject metadata is informational only. Draw Camera Frame
+                    # must not join the geometry-fit camera pairing workflow.
+                    cam_obj["no3d_camera_frame_subject"] = target.name
+                context.scene.camera = cam_obj
+                context.region_data.view_perspective = "CAMERA"
+                print(
+                    "DRAW_CAMERA_FRAME_OK",
+                    f"camera={cam_obj.name}",
+                    f"projection={self._projection}",
+                    f"rect_pixels={(left, bottom, right, top)}",
+                    f"viewport_pixels={self._region_size}",
+                    f"res=({res_x}x{res_y})",
+                    f"error_px={error_px:.6f}",
+                )
+                if error_px <= 0.5:
+                    self.report(
+                        {"INFO"},
+                        f"Created {cam_obj.name}: {res_x}×{res_y}, boundary error {error_px:.3f}px",
+                    )
+                else:
+                    self.report(
+                        {"WARNING"},
+                        f"Created {cam_obj.name}, but boundary error is {error_px:.3f}px",
+                    )
+                result = {"FINISHED"}
+            except Exception as exc:
+                if cam_obj.name in bpy.data.objects:
+                    bpy.data.objects.remove(cam_obj, do_unlink=True)
+                if cam_data.name in bpy.data.cameras:
+                    bpy.data.cameras.remove(cam_data, do_unlink=True)
+                self.report({"ERROR"}, f"Draw Camera Frame failed: {exc}")
+                result = {"CANCELLED"}
+
+            self._finish_interaction(context)
+            context.area.tag_redraw()
+            return result
+
+        return {"RUNNING_MODAL"}
+
+
 class OBJECT_OT_make_3d_mesh_camera(bpy.types.Operator):
     bl_idname = "object.make_3d_mesh_camera"
     bl_label = "Make 3D Mesh Camera"
@@ -1875,7 +2434,7 @@ class MESH_CAMERA_AddonPreferences(bpy.types.AddonPreferences):
     pie_pos_make_2d: bpy.props.EnumProperty(name="Make 2D", items=PIE_DIRECTIONS, default="WEST")
     pie_pos_refresh_2d: bpy.props.EnumProperty(name="Refresh 2D", items=PIE_DIRECTIONS, default="SOUTH_WEST")
     pie_pos_make_3d: bpy.props.EnumProperty(name="Make 3D", items=PIE_DIRECTIONS, default="EAST")
-    pie_pos_make_3d_marquee: bpy.props.EnumProperty(name="Make 3D Marquee", items=PIE_DIRECTIONS, default="NORTH_EAST")
+    pie_pos_make_3d_marquee: bpy.props.EnumProperty(name="Draw Camera Frame", items=PIE_DIRECTIONS, default="NORTH")
     pie_pos_draw_3d_plane: bpy.props.EnumProperty(name="Draw 3D Plane", items=PIE_DIRECTIONS, default="NORTH")
     pie_pos_refresh_3d_plane: bpy.props.EnumProperty(name="Refresh 3D From Plane", items=PIE_DIRECTIONS, default="NORTH_WEST")
     pie_pos_one_shot: bpy.props.EnumProperty(name="One-Shot", items=PIE_DIRECTIONS, default="SOUTH")
@@ -1906,6 +2465,9 @@ classes = (
     WM_OT_hanuman_apply_pie_hotkey,
     OBJECT_OT_make_mesh_camera,
     OBJECT_OT_refresh_mesh_camera,
+    OBJECT_OT_add_100mm_ortho_icon_camera,
+    VIEW3D_MT_no3d_camera_presets,
+    VIEW3D_OT_draw_camera_frame,
     OBJECT_OT_make_3d_mesh_camera,
     OBJECT_OT_make_3d_mesh_camera_marquee,
     OBJECT_OT_make_3d_framing_plane_marquee,
@@ -1915,7 +2477,6 @@ classes = (
     OBJECT_OT_one_shot_selected_mesh,
     VIEW3D_PT_make_mesh_camera_2d,
     VIEW3D_PT_make_mesh_camera_3d,
-    VIEW3D_PT_make_mesh_camera_3d_framing_plane,
     VIEW3D_PT_make_mesh_camera_render,
 )
 
@@ -1925,6 +2486,7 @@ def register():
     for legacy in (
         "VIEW3D_PT_make_mesh_camera",
         "VIEW3D_PT_export_mesh_bounds_png",
+        "VIEW3D_PT_make_mesh_camera_3d_framing_plane",
     ):
         cls = getattr(bpy.types, legacy, None)
         if cls is not None:

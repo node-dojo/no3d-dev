@@ -26,3 +26,8 @@ subdir = "no3d_camera_utilities"
 source = "https://github.com/node-dojo/agent-bridge.git"
 ref = "master"
 subdir = "agent_bridge"
+
+[send_nodes]
+source = "https://github.com/node-dojo/Send-Nodes.git"
+ref = "main"
+subdir = "extension"

@@ -1,0 +1,18 @@
+schema_version = "1.0.0"
+
+id = "send_nodes"
+version = "0.1.0"
+name = "Send Nodes"
+tagline = "Share node groups as native Blender files by URL"
+maintainer = "Node Dojo"
+type = "add-on"
+
+website = "https://github.com/node-dojo/Send-Nodes"
+tags = ["Node", "Geometry Nodes", "Material"]
+blender_version_min = "4.5.0"
+license = ["SPDX:GPL-3.0-or-later"]
+
+[permissions]
+files = "Export and import node-group bundle files"
+network = "Download node-group bundles from user-supplied URLs"
+clipboard = "Copy the public URL of an exported node-group bundle"

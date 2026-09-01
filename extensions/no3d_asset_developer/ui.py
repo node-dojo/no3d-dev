@@ -51,123 +51,6 @@ class NO3D_MT_asset_export_menu(Menu):
         )
 
 
-class NO3D_PT_asset_cleanup_panel(Panel):
-    """NO3D Asset Cleanup panel in Asset Editor Tool Properties"""
-    bl_label = "Asset Cleanup"
-    bl_idname = "NO3D_PT_asset_cleanup_panel"
-    bl_space_type = 'FILE_BROWSER'
-    bl_region_type = 'TOOL_PROPS'
-    bl_category = "No3D Dev"
-
-    def draw(self, context):
-        layout = self.layout
-
-        # Get the active asset
-        asset = None
-        if hasattr(context, 'id') and context.id:
-            candidate = context.id
-            if hasattr(candidate, 'asset_data') and candidate.asset_data:
-                asset = candidate
-
-        if not asset and hasattr(context, 'active_object') and context.active_object:
-            obj = context.active_object
-            if hasattr(obj, 'asset_data') and obj.asset_data:
-                asset = obj
-
-        if not asset and hasattr(context, 'selected_objects'):
-            for obj in context.selected_objects:
-                if hasattr(obj, 'asset_data') and obj.asset_data:
-                    asset = obj
-                    break
-
-        if not asset:
-            box = layout.box()
-            box.label(text="No asset selected", icon='INFO')
-            box.label(text="Select an asset in the Asset Browser")
-            box.label(text="to scan for dependencies")
-            return
-
-        # Asset Info
-        box = layout.box()
-        box.label(text="Selected Asset:", icon='ASSET_MANAGER')
-        box.row().label(text=f"Name: {asset.name}")
-        box.row().label(text=f"Type: {type(asset).__name__}")
-
-        layout.separator()
-        row = layout.row()
-        row.scale_y = 1.2
-        row.operator(
-            "asset.scan_dependencies_no3d",
-            text="Scan Dependencies",
-            icon='VIEWZOOM',
-        )
-
-        # Dependencies list
-        wm = context.window_manager
-        dependencies = wm.get('no3d_asset_dependencies', [])
-
-        if dependencies:
-            layout.separator()
-            box = layout.box()
-            box.label(text=f"Dependencies Found: {len(dependencies)}", icon='ERROR')
-
-            row = box.row()
-            row.scale_y = 1.2
-            row.operator(
-                "asset.clean_all_dependencies_no3d",
-                text="Clean All",
-                icon='BRUSH_DATA',
-            )
-
-            layout.separator()
-
-            for i, dep in enumerate(dependencies):
-                dep_box = layout.box()
-                dep_box.row().label(text=f"{i + 1}. {dep['dependency_name']}", icon='ERROR')
-                dep_box.row().label(text=f"Type: {dep['type']}")
-
-                if dep.get('relationship'):
-                    dep_box.row().label(text=f"Relationship: {dep['relationship']}")
-                if dep.get('node_name'):
-                    dep_box.row().label(text=f"Node: {dep['node_name']}")
-                if dep.get('modifier_name'):
-                    dep_box.row().label(text=f"Modifier: {dep['modifier_name']}")
-
-                row = dep_box.row()
-                row.scale_y = 1.1
-
-                if dep['action_available'] == 'isolate' and dep['type'] == 'NodeGroup':
-                    op = row.operator(
-                        "asset.isolate_node_group_no3d",
-                        text="Isolate",
-                        icon='DUPLICATE',
-                    )
-                    op.dependency_name = dep['dependency_name']
-                    op.dependency_type = dep['dependency_type']
-                    op.node_name = dep.get('node_name', '')
-                    op.modifier_name = dep.get('modifier_name', '')
-
-                if dep['action_available'] == 'remove':
-                    op = row.operator(
-                        "asset.remove_dependency_no3d",
-                        text="Remove",
-                        icon='X',
-                    )
-                    op.dependency_name = dep['dependency_name']
-                    op.dependency_type = dep['dependency_type']
-                    op.relationship = dep.get('relationship', '')
-                    op.modifier_name = dep.get('modifier_name', '')
-        else:
-            scanned_asset = wm.get('no3d_scanned_asset_name', '')
-            if scanned_asset == asset.name:
-                box = layout.box()
-                box.label(text="No problematic dependencies found", icon='CHECKMARK')
-                box.label(text="Asset is ready for export")
-            else:
-                box = layout.box()
-                box.label(text="Click 'Scan Dependencies' to check", icon='INFO')
-
-
 # ---------------------------------------------------------------------------
 # v3.0 — Method-selectable extraction panel (View3D N-panel)
 # ---------------------------------------------------------------------------
@@ -360,7 +243,7 @@ class NO3D_PT_extract_v3(Panel):
     bl_idname = "NO3D_PT_extract_v3"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "No3D Dev"
+    bl_category = "NO3D Dev"
 
     draw = _draw_extract_v3
 
@@ -371,7 +254,7 @@ class NO3D_PT_extract_v3_assetbrowser(Panel):
     bl_idname = "NO3D_PT_extract_v3_assetbrowser"
     bl_space_type = 'FILE_BROWSER'
     bl_region_type = 'TOOL_PROPS'
-    bl_category = "No3D Dev"
+    bl_category = "NO3D Dev"
 
     @classmethod
     def poll(cls, context):
@@ -392,7 +275,7 @@ class NO3D_PT_dev_notes(Panel):
     bl_idname = "NO3D_PT_dev_notes"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "No3D Dev"
+    bl_category = "NO3D Dev"
 
     def draw(self, context):
         layout = self.layout
@@ -485,7 +368,7 @@ class NO3D_PT_viewport_screenshot(Panel):
     bl_idname = "NO3D_PT_viewport_screenshot"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "No3D Dev"
+    bl_category = "NO3D Dev"
 
     def draw(self, context):
         layout = self.layout
@@ -583,7 +466,7 @@ class NO3D_PT_paste_clipboard(Panel):
     bl_idname = "NO3D_PT_paste_clipboard"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "No3D Dev"
+    bl_category = "NO3D Dev"
 
     def draw(self, context):
         layout = self.layout
@@ -621,7 +504,7 @@ class NO3D_PT_editor_screenshot(Panel):
     bl_idname = "NO3D_PT_editor_screenshot"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "No3D Dev"
+    bl_category = "NO3D Dev"
 
     def draw(self, context):
         layout = self.layout
@@ -672,7 +555,7 @@ class NO3D_PT_viewport_format(Panel):
     bl_idname = "NO3D_PT_viewport_format"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "No3D Dev"
+    bl_category = "NO3D Dev"
 
     def draw(self, context):
         layout = self.layout
@@ -726,7 +609,7 @@ class NO3D_PT_aspect_overlay(Panel):
     bl_idname = "NO3D_PT_aspect_overlay"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "No3D Dev"
+    bl_category = "NO3D Dev"
 
     def draw(self, context):
         aspect_overlay.draw_aspect_overlay_section(self.layout, context)
@@ -742,7 +625,7 @@ class NO3D_PT_node_screenshot(Panel):
     bl_idname = "NO3D_PT_node_screenshot"
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
-    bl_category = "No3D Dev"
+    bl_category = "NO3D Dev"
 
     def draw(self, context):
         layout = self.layout
@@ -856,7 +739,6 @@ _appended_headers = []
 
 _classes = (
     NO3D_MT_asset_export_menu,
-    NO3D_PT_asset_cleanup_panel,
     NO3D_PT_extract_v3,
     NO3D_PT_extract_v3_assetbrowser,
     NO3D_PT_dev_notes,

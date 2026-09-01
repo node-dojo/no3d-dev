@@ -6,9 +6,9 @@ No other module may hardcode these strings. A rename is a one-file edit here.
 ADDON_NAME = "No3d Wip"
 ADDON_PACKAGE = __package__  # "no3d_tools_wip"
 
-# N-panel — nests the WIP Toolbox under the Asset Developer's "No3D Dev" tab
+# N-panel — nests the WIP Toolbox under the Asset Developer's "NO3D Dev" tab
 # (retargeted from the standalone add-on's "NO3D WIP" tab on merge).
-NPANEL_CATEGORY = "No3D Dev"
+NPANEL_CATEGORY = "NO3D Dev"
 
 # Sections (each WIP feature gets its own section / panel idname here)
 TOOLBOX_PANEL_IDNAME = "NO3D_WIP_PT_toolbox"
@@ -17,6 +17,8 @@ TOOLBOX_PANEL_LABEL = "Toolbox"
 # View Align — view-relative directional align (verts in edit mode, objects in object mode)
 VIEW_ALIGN_OT_IDNAME = "no3d_wip.view_align"
 VIEW_ALIGN_OT_LABEL = "View Align"
+VIEW_DISTRIBUTE_OT_IDNAME = "no3d_wip.view_distribute"
+VIEW_DISTRIBUTE_OT_LABEL = "View Distribute"
 VIEW_ALIGN_PIE_IDNAME = "NO3D_WIP_MT_view_align_pie"
 VIEW_ALIGN_PIE_LABEL = "View Align"
 
@@ -57,8 +59,8 @@ FEATURES = (
     {
         "id": "view_align",
         "name": VIEW_ALIGN_PIE_LABEL,
-        "version": "0.1.0",
-        "updated": "2026-06-16 00:00",
+        "version": "0.2.0",
+        "updated": "2026-08-21 00:00",
         "icon": "MOD_MIRROR",
         "panel_id": VIEW_ALIGN_SUBPANEL_IDNAME,
     },

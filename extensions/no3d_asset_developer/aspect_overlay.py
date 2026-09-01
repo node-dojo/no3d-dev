@@ -1039,7 +1039,7 @@ def _remove_draw_handlers():
 
 
 # ---------------------------------------------------------------------------
-# N-panel section (drawn into the existing No3D Dev category by ui.py)
+# N-panel section (drawn into the existing NO3D Dev category by ui.py)
 # ---------------------------------------------------------------------------
 
 

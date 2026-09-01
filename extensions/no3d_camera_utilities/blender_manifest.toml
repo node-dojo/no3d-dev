@@ -1,9 +1,9 @@
 schema_version = "1.0.0"
 
 id = "no3d_camera_utilities"
-version = "1.0.0"
+version = "1.2.0"
 name = "No3d Camera Utilities"
-tagline = "2D/3D mesh camera tools, framing plane, and render utilities"
+tagline = "Viewport camera framing, mesh fit, and render utilities"
 maintainer = "Joe Bowers <joe@welltarot.com>"
 type = "add-on"
 

@@ -1,0 +1,19 @@
+schema_version = "1.0.0"
+
+id = "no3d_save_reload"
+version = "1.0.0"
+name = "No3d Save & Reload"
+tagline = "Save the next Blender iteration and reopen it"
+maintainer = "Joe Bowers <joe@welltarot.com>"
+type = "add-on"
+
+website = "https://no3dtools.com"
+tags = ["System"]
+blender_version_min = "5.0.0"
+license = ["SPDX:GPL-3.0-or-later"]
+
+[permissions]
+files = "Save numbered Blender iterations and launch the saved file"
+
+[build]
+paths = ["__init__.py", "save_op.py", "helper.py"]

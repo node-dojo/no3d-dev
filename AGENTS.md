@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Entry point for AI agents (Cowork, Claude Code, Claude Pair, or any future
+Entry point for AI agents (Codex, Claude Code, or any future
 agent) landing in this repo. Read this before touching code. If you see
 "CLAUDE.md" referenced anywhere in tooling, treat this file as the source of
 truth — it applies to all agents, not just Claude.
@@ -23,10 +23,19 @@ Extensions currently in the repo:
 
 - `agent_bridge` — routes agents to the intended live Blender instance;
   vendored from `github.com/node-dojo/agent-bridge`
-- `no3d_asset_developer` — asset export pipeline; currently still bundles
-  Save & Reload and Claude Pair as internal subpackages (unmerge planned in
-  Steps 4–5 of the monorepo restructure)
-- (future) `no3d_agent_bridge`, `no3d_save_reload`, `no3d_claude_pair`
+- `send_nodes` — Blender-native node-group exchange; vendored from
+  `github.com/node-dojo/Send-Nodes`
+- `no3d_asset_developer` — asset export pipeline and dogfood host for the
+  separable Git Assets and Send Nodes modules
+- `no3d_cad_wip` — experimental Blender-native direct-modeling and feature
+  graph orchestration container; keep exploratory features here until their
+  native-file portability and interaction model are proven
+- `no3d_save_reload` — independent numbered-save and relaunch extension
+- `no3d_camera_utilities` — vendored public camera/render utilities
+
+**Claude Pair is retired.** Agent Bridge is its supported successor. Historical
+Claude Pair plans remain only as records of the earlier implementation and must
+not be treated as current architecture or an extension to restore.
 
 ## Non-negotiables (read before editing)
 
@@ -54,9 +63,8 @@ Extensions currently in the repo:
   - The Supabase WIP-library publisher at `<The Well Code>/no3d-remote-publish/`
     is a *different* pipeline (ships asset `.blend` files, not add-on code) —
     do NOT conflate.
-- **Platform: macOS only** for the Save & Reload and Claude Pair features
-  currently living inside `no3d_asset_developer/`. No cross-platform guards;
-  operators fail gracefully via `self.report({"ERROR"}, …)`.
+- **Platform: macOS only** for No3d Save & Reload. It fails gracefully via
+  `self.report({"ERROR"}, …)` when its application/relaunch boundary is absent.
 
 ## Blender quirks / gotchas
 
@@ -65,7 +73,7 @@ Extensions currently in the repo:
   `no3d-dev` post-rename cosmetics) has a hyphen and isn't a valid Python
   module name — but that doesn't matter because we never add it to
   `sys.path`. Each `extensions/<name>/` is underscore-safe by convention
-  (`no3d_asset_developer`, `no3d_agent_bridge`, etc.); the extension dir
+  (`no3d_asset_developer`, `agent_bridge`, etc.); the extension dir
   name IS the Python module name. `check_register.sh` adds
   `extensions/` (not the outer repo dir) to `sys.path` and imports the
   extension directly. No symlink shim needed at the extension level.
@@ -102,8 +110,8 @@ Extensions currently in the repo:
   extensions. Use per-extension prefixes:
   - `NO3D_AD_*` — no3d_asset_developer
   - `NO3D_SR_*` — no3d_save_reload
-  - `NO3D_CP_*` — no3d_claude_pair
-  - `NO3D_AB_*` — no3d_agent_bridge
+  - `NO3D_AB_*` — agent_bridge
+  - `NO3D_CAD_*` — no3d_cad_wip
 - **Cross-extension calls via `bpy.ops` only.** Fine to call
   `bpy.ops.no3d_asset_developer.export_single_asset()` from another
   sub-add-on, but wrap in try/except so the caller degrades if the target
@@ -203,12 +211,16 @@ Session logs live in the vault, not the repo:
 no3d-dev/                                # repo root (folder still named
 │                                        # no3d-asset-developer locally)
 ├── extensions/
-│   └── no3d_asset_developer/            # first sub-add-on
+│   ├── agent_bridge/                    # vendored from canonical repo
+│   ├── send_nodes/                      # vendored from canonical repo
+│   ├── no3d_save_reload/                # authored here
+│   ├── no3d_camera_utilities/           # vendored from canonical repo
+│   ├── no3d_cad_wip/                    # experimental authored extension
+│   └── no3d_asset_developer/            # asset workflow + dogfood host
 │       ├── blender_manifest.toml
 │       ├── __init__.py                  # bl_info, NO3D_AddonPreferences
 │       ├── operators.py, ui.py, utils.py
 │       ├── wip/, notes/                 # internal subpackages
-│       ├── save_reload/, claude_pair/   # still merged; unmerge in Steps 4-5
 │       ├── extraction_methods.py + blend_export.py + _export_single_asset.py
 │       │                                # retained internal template-append
 │       │                                # pipeline; re-enable via
@@ -241,6 +253,13 @@ tools/check_register.sh                  # should print REGISTER_OK
 
 ## Lessons / gotchas (append here after corrections)
 
+- Never create or save the user's Blender preferences from a stripped,
+  temporary, or test-only extension repository state. Registration tests must
+  use `--factory-startup` and must not call `bpy.ops.wm.save_userpref()`. A live
+  development cutover must preserve the existing repository collection,
+  enabled third-party add-ons, keymaps, themes, and add-on preferences; change
+  only the explicitly retired/replaced module entries.
+
 <!--
 When you get corrected on something — by the user or by a broken assumption
 in a plan/spec — write the durable lesson as a bullet here so the next agent
@@ -263,3 +282,33 @@ Non-negotiables) and remove it from this list.
   extension zip — the manifest's `[build].paths` are relative to
   `--source-dir` which is the extension's own dir. Add a build-time copy
   step in `build_all.sh` if a future release needs them inside the zip.
+- Parse Blender extension modules as
+  `bl_ext.<repository>.<extension_id>[.<submodule>]`. The owner is segment 3,
+  not the repository segment (`user_default`, `NO3DTools`, and so on). Getting
+  this wrong causes owner-based N-panel sorting to classify our panels as
+  unrelated third-party add-ons.
+- N-panel tabs merge and sort by exact registered `bl_category` strings.
+  `NO3D Dev` and `No3D Dev` are different tabs, and changing source does not
+  mutate classes already registered in a long-running Blender process. Verify
+  live classes, normalize stale classes by unregistering/re-registering them,
+  then rerun `npanel_order.apply_npanel_order()`.
+- Blender exposes no declarative N-panel tab-order property. The practical
+  programmatic mechanism is registration order: unregister category-bearing
+  sidebar panels child-first, then register roots in desired category order
+  and children afterward. Always restore foreign panels after partial errors.
+- An add-on module's cached `_addon_keymaps` list is not proof that its items
+  still exist in Blender. For live recovery, inspect the actual
+  `window_manager.keyconfigs.addon` keymap and rebuild missing bindings with
+  the module's unregister/register hooks. Keep plain F scoped to Object Mode
+  so Mesh Edit Mode retains F = Make Face.
+- A stale live extension can be repaired surgically without restarting or
+  saving preferences: normalize only the affected registered panels, remove
+  explicitly retired panels, rebuild missing add-on keymaps, and reapply tab
+  ordering. Read back the exact live categories and bindings afterward; source
+  inspection and `REGISTER_OK` alone do not prove the open process changed.
+- N-panel navigation is one internal `power_panel/` feature suite. Its
+  reconciliation order is restore hidden/numbered/routed state, discover live
+  panels, route canonical categories, apply numeric display slots, then order
+  categories. F5 owns live filter input; Option+Tab owns the spatial pie and
+  invoked number selection. Never add global modifier-number bindings for
+  Power Panel or split these concerns back into host-level sibling modules.

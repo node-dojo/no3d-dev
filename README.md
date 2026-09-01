@@ -26,15 +26,80 @@ In Blender 5.0+:
 
 Turns marked assets into clean, individually-packaged `.blend` files with
 metadata, thumbnails, and dev notes — for maintaining a distributable asset
-library. Currently also bundles **Save & Reload** (one-click iteration save +
-relaunch) and **Claude Pair** (pairs a Blender instance with a Claude Code
-terminal via the official Blender MCP add-on) as subpackages; those will
-unmerge into their own top-level extensions in a later phase.
+library. Git Assets and Send Nodes are developed here as separable dogfood
+modules before their tentative independent public distribution.
 
 Location once installed: **Asset Browser → Context Menu** and
 **3D Viewport → N-Panel → No3D Dev**.
 
+#### Transparent Media
+
+Open **3D Viewport → N-Panel → No3D Dev → Transparent Media**. The two scene
+buttons render a transparent PNG master sequence with the current camera,
+engine, resolution, frame range, and FPS, then create either:
+
+- a transparent ProRes 4444 `.mov`; or
+- a looping transparent `.gif`.
+
+The same panel converts an existing numbered PNG sequence. Leaving its Folder
+field empty uses the scene's current Output folder. Output names and locations
+are inferred, and the rendered PNG sequence remains available as the reusable
+master. GIF has one-bit transparency; use the MOV when soft alpha edges matter.
+
+Conversion requires the `ffmpeg` executable. Common Homebrew and shell paths
+are detected automatically; an override is available in the extension's
+preferences.
+
+#### Image planes
+
+Both **Add → Image → Mesh Plane** and `Shift+5` open Blender's native image
+plane importer with the NO3D clipboard-plane material template preloaded:
+Shadeless, alpha enabled, Blended transparency, Closest interpolation, and
+Repeat extension. The native file browser and placement workflow remain
+unchanged. `Cmd+Shift+V` continues to paste the clipboard directly as a plane
+using the same template.
+
 Source: `extensions/no3d_asset_developer/`.
+
+#### Power Panel
+
+Power Panel organizes and navigates the 3D View sidebar without depending on
+CleanPanels. It routes local tools into intent-based categories, keeps native
+Blender tabs first, adds stable numbered bookmarks, and provides two fast
+navigation paths:
+
+- `F5` enters live tab-filter input in the Tool Settings field.
+- `Option+Tab` opens the spatial Power Panel pie; choose by gesture/click or
+  press a displayed number while it is open.
+
+Slot destinations are editable in No3d Asset Developer preferences. Defaults
+work immediately, and Power Panel does not reserve global modifier-number
+shortcuts. Its implementation is the internal `power_panel/` subpackage.
+
+### Agent Bridge
+
+Registers each live Blender by `.blend` filename and lets agents select the
+correct instance without manually managing ports. Its canonical source remains
+`github.com/node-dojo/agent-bridge`; the Blender extension is vendored here for
+one managed development/install surface. Agent Bridge supersedes and retires
+the former Claude Pair workflow.
+
+Source projection: `extensions/agent_bridge/`.
+
+### Send Nodes
+
+Shares Blender-native node-group bundles by URL. Its canonical public source
+remains `github.com/node-dojo/Send-Nodes`; the extension is vendored here and
+dogfooded alongside Asset Developer.
+
+Source projection: `extensions/send_nodes/`.
+
+### No3d Save & Reload
+
+Saves the current file as its next numbered iteration, quits Blender, and
+reopens that iteration in the same Blender application.
+
+Source: `extensions/no3d_save_reload/`.
 
 ## Development
 

@@ -29,7 +29,15 @@ def build_register_payload(pid: int, port: int, host: str, blendfile: str) -> di
 # ---------------------------------------------------------------------------
 
 # Filenames we treat as "agent instruction" documents.
-_INSTRUCTION_FILENAMES = ("CLAUDE.md", "AGENTS.md", "claude.md", "agents.md")
+_INSTRUCTION_FILENAMES = (
+    "AGENT.md",
+    "AGENTS.md",
+    "agent.md",
+    "agents.md",
+    # Compatibility fallbacks for existing client-specific projects.
+    "CLAUDE.md",
+    "claude.md",
+)
 
 # Directory of THIS add-on. Used to surface the Agent Bridge tier's own docs.
 _THIS_ADDON_DIR = Path(__file__).resolve().parent
@@ -37,7 +45,7 @@ _THIS_ADDON_DIR = Path(__file__).resolve().parent
 
 # ---------------------------------------------------------------------------
 # Anchor paths — single source of truth, environment-variable overridable.
-# Every user-facing path claim in this add-on (primer, drift map, CLAUDE.md)
+# Every user-facing path claim in this add-on (primer, drift map, AGENT.md)
 # resolves through here, so a folder rename or machine migration is a
 # one-var edit rather than a doc-wide search-and-replace.
 # ---------------------------------------------------------------------------
@@ -267,11 +275,14 @@ def discover_instruction_files(project_dir: Path | None) -> list[dict]:
 
     # --- Global (user-level) ------------------------------------------------
     global_candidates = [
+        home / "AGENT.md",
+        home / "AGENTS.md",
+        home / ".config" / "agent" / "AGENT.md",
+        # Legacy client-specific locations remain readable as fallbacks.
         home / ".claude" / "CLAUDE.md",
         home / ".config" / "claude" / "CLAUDE.md",
         home / "CLAUDE.md",
         home / ".claude" / "AGENTS.md",
-        home / "AGENTS.md",
     ]
     for p in global_candidates:
         if p.exists() and p.is_file():
@@ -287,13 +298,16 @@ def discover_instruction_files(project_dir: Path | None) -> list[dict]:
                 "label": name,
                 "path": str(candidate),
             })
-            break  # first hit wins; CLAUDE.md preferred over AGENTS.md
+            break  # first hit wins; agent-agnostic guidance is preferred
 
-    # --- Project (blend file directory + its .claude/) ---------------------
+    # --- Project (blend directory, agent-first with legacy fallbacks) ------
     if project_dir is not None:
         proj_candidates = [
-            project_dir / "CLAUDE.md",
+            project_dir / "AGENT.md",
             project_dir / "AGENTS.md",
+            project_dir / ".agent" / "AGENT.md",
+            # Legacy client-specific project instructions remain compatible.
+            project_dir / "CLAUDE.md",
             project_dir / ".claude" / "CLAUDE.md",
             project_dir / ".claude" / "AGENTS.md",
         ]
@@ -385,8 +399,8 @@ def _write_launch_command_file(project_dir: Path, primer: str) -> Path:
 # --- Blender-only below (guarded so the module imports without bpy for tests) ---
 try:
     import bpy
-    from bpy.types import Operator, Panel
-    from bpy.props import StringProperty
+    from bpy.types import AddonPreferences, Operator, Panel
+    from bpy.props import EnumProperty, IntProperty, StringProperty
     _HAS_BPY = True
 except ImportError:
     _HAS_BPY = False
@@ -405,6 +419,168 @@ if _HAS_BPY:
     _user_stopped = False
 
     _AUTO_SERVE_DELAY = 0.5  # seconds after register before first auto-serve
+
+    _addon_keymaps = []
+
+    def _quote_address_value(value) -> str:
+        """Quote a Blender identifier for a paste-ready agent prompt."""
+        text = str(value or "").replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{text}"'
+
+    def _instance_address(entry: dict | None = None) -> str:
+        """Return this or a supplied registry entry as a prompt-ready target."""
+        entry = entry or reg.read(_PID) or build_register_payload(
+            _PID, 0, "localhost", bpy.data.filepath or ""
+        )
+        stem = reg.stem_of(entry) or "(unsaved)"
+        port = entry.get("port")
+        pid = entry.get("blender_pid") or _PID
+        connection = f":{port}, pid {pid}" if port else f"pid {pid}"
+        return f"Blender target: {_quote_address_value(stem)} ({connection})"
+
+    def _object_references(obj) -> list[tuple[str, str]]:
+        """Describe an object and its unambiguous active Geometry Nodes tree."""
+        refs = [("Object", obj.name)]
+        nodes_modifiers = [
+            modifier
+            for modifier in getattr(obj, "modifiers", ())
+            if modifier.type == "NODES" and getattr(modifier, "node_group", None)
+        ]
+        active_modifier = getattr(getattr(obj, "modifiers", None), "active", None)
+        chosen = active_modifier if active_modifier in nodes_modifiers else None
+        if chosen is None and len(nodes_modifiers) == 1:
+            chosen = nodes_modifiers[0]
+        if chosen is not None:
+            refs.append(("Geometry Nodes", chosen.node_group.name))
+        return refs
+
+    def _node_tree_label(tree) -> str:
+        labels = {
+            "GeometryNodeTree": "Geometry Nodes",
+            "ShaderNodeTree": "Shader Nodes",
+            "CompositorNodeTree": "Compositor Nodes",
+        }
+        return labels.get(getattr(tree, "bl_idname", ""), "Node Tree")
+
+    def _node_under_mouse(context, event):
+        """Return the topmost node under the key event, when coordinates exist."""
+        if event is None or getattr(context, "region", None) is None:
+            return None
+        view2d = getattr(context.region, "view2d", None)
+        if view2d is None:
+            return None
+        tree = getattr(getattr(context, "space_data", None), "edit_tree", None)
+        tree = tree or getattr(getattr(context, "space_data", None), "node_tree", None)
+        if tree is None:
+            return None
+        x, y = view2d.region_to_view(event.mouse_region_x, event.mouse_region_y)
+        for node in reversed(list(tree.nodes)):
+            location = getattr(node, "location_absolute", node.location)
+            width = max(float(getattr(node, "width", 0.0)), float(node.dimensions.x))
+            height = max(float(getattr(node, "height", 0.0)), float(node.dimensions.y))
+            if location.x <= x <= location.x + width and location.y - height <= y <= location.y:
+                return node
+        return None
+
+    def _context_object(context):
+        """Resolve an object even when an editor keymap omits rich context members."""
+        obj = getattr(context, "active_object", None) or getattr(context, "object", None)
+        if obj is not None:
+            return obj
+        view_layer = getattr(context, "view_layer", None)
+        return getattr(getattr(view_layer, "objects", None), "active", None)
+
+    def _context_references(context, event=None) -> list[tuple[str, str]]:
+        """Resolve the most specific useful Blender target in the focused editor."""
+        area_type = getattr(getattr(context, "area", None), "type", "")
+
+        if area_type == "NODE_EDITOR":
+            tree = getattr(getattr(context, "space_data", None), "edit_tree", None)
+            tree = tree or getattr(getattr(context, "space_data", None), "node_tree", None)
+            if tree is None:
+                obj = _context_object(context)
+                return _object_references(obj) if obj is not None else []
+            refs = [(_node_tree_label(tree), tree.name)]
+            hovered = _node_under_mouse(context, event)
+            active = hovered or getattr(getattr(tree, "nodes", None), "active", None)
+            nested = getattr(active, "node_tree", None) if active else None
+            if nested is not None and nested != tree:
+                refs.append(("Referenced Node Group", nested.name))
+            if active is not None:
+                kind = "Frame" if active.type == "FRAME" else "Node"
+                refs.append((kind, active.name))
+                if active.label:
+                    refs.append((f"{kind} Label", active.label))
+            return refs
+
+        if area_type == "OUTLINER":
+            selected_ids = list(getattr(context, "selected_ids", ()) or ())
+            selected = selected_ids[-1] if selected_ids else getattr(context, "id", None)
+            if selected is None:
+                selected = _context_object(context)
+            if selected is None:
+                return []
+            if isinstance(selected, bpy.types.Object):
+                return _object_references(selected)
+            if isinstance(selected, bpy.types.NodeTree):
+                return [(_node_tree_label(selected), selected.name)]
+            label = getattr(getattr(selected, "bl_rna", None), "name", "Data-block")
+            name = getattr(selected, "name", "")
+            return [(label, name)] if name else []
+
+        if area_type == "VIEW_3D":
+            obj = _context_object(context)
+            if obj is not None and obj.select_get():
+                return _object_references(obj)
+
+        if area_type == "PROPERTIES":
+            pointer = getattr(context, "button_pointer", None)
+            if isinstance(pointer, bpy.types.NodeTree):
+                return [(_node_tree_label(pointer), pointer.name)]
+            obj = _context_object(context)
+            if obj is not None:
+                return _object_references(obj)
+
+        return []
+
+    def _safe_context_references(context, event=None) -> list[tuple[str, str]]:
+        """Resolve optional detail without ever losing the instance handoff."""
+        try:
+            return _context_references(context, event=event)
+        except Exception as ex:  # pylint: disable=broad-exception-caught
+            print(f"[Agent Bridge] Context handoff fell back to live instance: {ex}")
+            return []
+
+    def _build_context_address(context, instance_only=False, entry=None, event=None) -> str:
+        parts = [_instance_address(entry)]
+        if not instance_only:
+            parts.extend(
+                f"{label}: {_quote_address_value(value)}"
+                for label, value in _safe_context_references(context, event=event)
+            )
+        return " → ".join(parts)
+
+    def _handoff_specificity(context, instance_only=False, event=None) -> str:
+        """Describe the deepest copied destination for the status notification."""
+        if instance_only:
+            return "Pid"
+        references = _safe_context_references(context, event=event)
+        if not references:
+            return "Pid"
+        deepest = references[-1][0]
+        if deepest in {
+            "Geometry Nodes",
+            "Shader Nodes",
+            "Compositor Nodes",
+            "Node Tree",
+            "Referenced Node Group",
+        }:
+            deepest = "Node Group"
+        elif deepest in {"Node Label", "Node"}:
+            deepest = "Node"
+        elif deepest in {"Frame Label", "Frame"}:
+            deepest = "Frame"
+        return f"Pid -> {deepest}"
 
     def _asset_libraries() -> list[dict]:
         """Enumerate the asset libraries configured in this Blender instance."""
@@ -492,6 +668,88 @@ if _HAS_BPY:
             self.report({"INFO"}, f"Copied: {short}")
             return {"FINISHED"}
 
+    class AGENT_BRIDGE_OT_copy_context_address(Operator):
+        bl_idname = "agent_bridge.copy_context_address"
+        bl_label = "Copy Address Handoff"
+        bl_description = (
+            "Copy the live Blender target plus the focused object or node tree "
+            "for pasting into an agent prompt"
+        )
+        bl_options = {"REGISTER"}
+
+        scope: EnumProperty(
+            items=(
+                ("AUTO", "Focused Context", "Include the focused object or node tree"),
+                ("INSTANCE", "Instance Only", "Copy only the live Blender instance"),
+            ),
+            default="AUTO",
+            options={"HIDDEN"},
+        )  # type: ignore[valid-type]
+        target_pid: IntProperty(default=0, options={"HIDDEN"})  # type: ignore[valid-type]
+
+        def _copy(self, context, event=None):
+            entry = reg.read(self.target_pid) if self.target_pid else None
+            if self.target_pid and entry is None:
+                self.report({"WARNING"}, "That Blender instance is no longer live.")
+                return {"CANCELLED"}
+            address = _build_context_address(
+                context,
+                instance_only=self.scope == "INSTANCE",
+                entry=entry,
+                event=event,
+            )
+            context.window_manager.clipboard = address
+            self.report(
+                {"INFO"},
+                "Agent Handoff copied: "
+                + _handoff_specificity(
+                    context,
+                    instance_only=self.scope == "INSTANCE",
+                    event=event,
+                ),
+            )
+            return {"FINISHED"}
+
+        def invoke(self, context, event):
+            return self._copy(context, event=event)
+
+        def execute(self, context):
+            return self._copy(context)
+
+    class AGENT_BRIDGE_Preferences(AddonPreferences):
+        bl_idname = __package__
+
+        def draw(self, context):
+            layout = self.layout
+            layout.label(
+                text="Address Handoff shortcuts",
+                icon="COPYDOWN",
+            )
+            layout.label(
+                text="Default: Cmd+Shift+C. Specificity follows the focused editor.",
+                icon="INFO",
+            )
+            keyconfig = context.window_manager.keyconfigs.user
+            if keyconfig is None:
+                layout.label(text="User keyconfig unavailable", icon="ERROR")
+                return
+            import rna_keymap_ui
+            for keymap, item in _addon_keymaps:
+                user_keymap = keyconfig.keymaps.get(keymap.name)
+                if user_keymap is None:
+                    continue
+                user_item = user_keymap.keymap_items.from_id(item.id)
+                if user_item is None:
+                    continue
+                rna_keymap_ui.draw_kmi(
+                    ["ADDON", "USER", "DEFAULT"],
+                    keyconfig,
+                    user_keymap,
+                    user_item,
+                    layout,
+                    0,
+                )
+
     # -----------------------------------------------------------------------
     # NEW: Launch a Claude Code terminal primed for this project
     # -----------------------------------------------------------------------
@@ -501,7 +759,7 @@ if _HAS_BPY:
         bl_label = "Launch Claude Terminal Here"
         bl_description = (
             "Open a Terminal at this .blend's project directory and start Claude Code with a "
-            "primed system prompt (global rules + add-on docs + local CLAUDE.md)."
+            "primed system prompt from the available agent instruction files."
         )
         bl_options = {"REGISTER"}
 
@@ -562,7 +820,7 @@ if _HAS_BPY:
                              addons: list[dict],
                              blend_projects: list[dict],
                              asset_libs: list[dict]) -> str:
-        """Produce a markdown drift-check report Claude can read verbatim."""
+        """Produce a markdown drift-check report an agent can read verbatim."""
         import datetime
         lines = ["# Agent Bridge — drift map", ""]
         try:
@@ -816,6 +1074,12 @@ if _HAS_BPY:
             if entry:
                 row = layout.row(align=True)
                 row.label(text=f"Serving :{entry.get('port')}", icon="CHECKMARK")
+                copy_op = row.operator(
+                    "agent_bridge.copy_context_address",
+                    text="",
+                    icon="COPYDOWN",
+                )
+                copy_op.scope = "INSTANCE"
                 row.operator("agent_bridge.stop", text="", icon="UNLINKED")
                 layout.label(text=f"As: {entry.get('blendfile_stem') or '(unsaved)'}")
             else:
@@ -843,12 +1107,13 @@ if _HAS_BPY:
                     line = f"{stem}  :{port}  pid{pid}"
                     row = parent.row(align=True)
                     op = row.operator(
-                        "agent_bridge.copy_instance",
+                        "agent_bridge.copy_context_address",
                         text=line,
                         icon="COPYDOWN",
                         emboss=True,
                     )
-                    op.payload = line
+                    op.scope = "INSTANCE"
+                    op.target_pid = int(pid or 0)
 
                 # Keep the Blender hosting this panel visually distinct at the
                 # top; the remaining live instances continue as the shared list.
@@ -893,7 +1158,7 @@ if _HAS_BPY:
             project_dir = Path(blendfile).parent if blendfile else None
             docs = discover_instruction_files(project_dir)
             if not docs:
-                instr_box.label(text="No CLAUDE.md / AGENTS.md found.", icon="DOT")
+                instr_box.label(text="No AGENT.md / AGENTS.md found.", icon="DOT")
                 instr_box.label(text="Drop one in the .blend's folder.", icon="INFO")
             else:
                 # Group by scope in a stable order (Global → Agent Bridge → Project).
@@ -930,9 +1195,11 @@ if _HAS_BPY:
                         op3.filepath = d["path"]
 
     _classes = (
+        AGENT_BRIDGE_Preferences,
         AGENT_BRIDGE_OT_serve,
         AGENT_BRIDGE_OT_stop,
         AGENT_BRIDGE_OT_copy_instance,
+        AGENT_BRIDGE_OT_copy_context_address,
         AGENT_BRIDGE_OT_launch_claude,
         AGENT_BRIDGE_OT_refresh_drift_map,
         AGENT_BRIDGE_OT_open_in_blender_text,
@@ -940,6 +1207,35 @@ if _HAS_BPY:
         AGENT_BRIDGE_OT_reveal_folder,
         AGENT_BRIDGE_PT_panel,
     )
+
+    def _register_keymaps() -> None:
+        keyconfig = bpy.context.window_manager.keyconfigs.addon
+        if keyconfig is None:
+            return
+        for name, space_type in (
+            ("3D View", "VIEW_3D"),
+            ("Outliner", "OUTLINER"),
+            ("Node Editor", "NODE_EDITOR"),
+            ("Property Editor", "PROPERTIES"),
+            ("Window", "EMPTY"),
+        ):
+            keymap = keyconfig.keymaps.new(name=name, space_type=space_type)
+            item = keymap.keymap_items.new(
+                AGENT_BRIDGE_OT_copy_context_address.bl_idname,
+                "C",
+                "PRESS",
+                shift=True,
+                oskey=True,
+            )
+            _addon_keymaps.append((keymap, item))
+
+    def _unregister_keymaps() -> None:
+        for keymap, item in _addon_keymaps:
+            try:
+                keymap.keymap_items.remove(item)
+            except (ReferenceError, RuntimeError):
+                pass
+        _addon_keymaps.clear()
 
     # -----------------------------------------------------------------------
     # Auto-serve: start the server on add-on register, re-register on file
@@ -1016,6 +1312,7 @@ if _HAS_BPY:
         _user_stopped = False
         for cls in _classes:
             bpy.utils.register_class(cls)
+        _register_keymaps()
         _install_handlers()
         # Defer the initial serve past the restricted register-time context.
         if not bpy.app.background:
@@ -1026,6 +1323,7 @@ if _HAS_BPY:
                 pass
 
     def unregister():
+        _unregister_keymaps()
         _remove_handlers()
         try:
             if bpy.app.timers.is_registered(_auto_serve_timer):

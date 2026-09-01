@@ -1,5 +1,9 @@
 # Merge Claude Pair + Save & Reload Implementation Plan
 
+> **Historical and superseded (2026-08-28):** This plan was completed for the
+> former bundled architecture. Claude Pair is retired in favor of Agent Bridge,
+> and Save & Reload now ships independently. Do not resume this plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Fold the standalone Claude Pair and Save & Reload Blender add-ons into the No3d Asset Developer extension as first-class feature subpackages, then confirm the merged extension registers cleanly and its three UI surfaces appear.

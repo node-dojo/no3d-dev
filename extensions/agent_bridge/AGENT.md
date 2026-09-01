@@ -200,6 +200,75 @@ one per serving Blender. Schema per `build_register_payload`:
 - Target: the standalone `agent-bridge` MCP process (outside Blender)
   routes agent bpy calls to the matching entry by `.blend` stem.
 
+### Address Handoff  [POLICY]
+
+**Address Handoff** is the Blender-to-agent clipboard contract for quickly
+identifying the exact place the user means without manually copying instance,
+object, and node-group names one at a time.
+
+- Default shortcut: **Cmd+Shift+C** on macOS.
+- Operator: `bpy.ops.agent_bridge.copy_context_address()`; searchable from F3
+  as **Copy Address Handoff**.
+- The shortcut is registered independently in the 3D View, Outliner, Node
+  Editor, and Property Editor, plus a Window-level fallback for every other
+  editor. All bindings are editable under Agent Bridge's add-on preferences;
+  never assume the default remains unchanged.
+- The Agent N-panel's copy button and live-instance rows intentionally copy an
+  instance-only handoff.
+
+The address becomes more specific according to the editor under the mouse:
+
+| Focused editor | Address resolution |
+|----------------|--------------------|
+| 3D View | live instance → selected/active object → its active or sole Geometry Nodes group |
+| Outliner | live instance → selected datablock; active object is the fallback when keymap context omits `selected_ids` |
+| Node Editor | live instance → edited node tree → node or frame under the mouse; active node/frame is the fallback |
+| Modifier Properties | live instance → active object → its active or sole Geometry Nodes group |
+| Other/no target | live instance only |
+
+Context detail is best-effort. If selection or editor inspection fails for any
+reason, Address Handoff still copies the base live-instance reference and
+reports `Pid`; a shortcut strike must never produce an empty handoff.
+
+Node-editor invocation uses the actual keyboard-event mouse coordinates for
+node hit-testing. This is why hovering an individual node or frame can produce
+a deeper handoff than merely focusing the editor. Blender does not expose equivalent
+non-destructive row hit-testing for every Outliner keymap event, so Outliner
+resolution prefers the selected datablock and then the active object.
+
+Nodes and frames do not expose a durable UUID. Address Handoff uses the
+node's `.name`, which is unique within its owning node tree and therefore
+resolvable when paired with the tree address. A custom `.label` is copied too
+when present because it is the human-visible frame/node title, but labels are
+optional and not guaranteed unique. Agents must resolve by `.name` and treat
+`.label` as corroborating display context.
+
+Clipboard examples:
+
+```text
+Blender target: "Soon Cages Manu Constraints.001" (:9879, pid 2103)
+Blender target: "Soon Cages Manu Constraints.001" (:9879, pid 2103) → Object: "Ricoh Cage handfeel test_v117" → Geometry Nodes: "Geometry Nodes.001"
+Blender target: "Soon Cages Manu Constraints.001" (:9879, pid 2103) → Geometry Nodes: "Geometry Nodes.001" → Referenced Node Group: "3D Burn Medial Points" → Node: "3D Burn Medial Points"
+Blender target: "Soon Cages Manu Constraints.001" (:9879, pid 2103) → Geometry Nodes: "Geometry Nodes.001" → Frame: "Frame.003" → Frame Label: "Burn until the nearest surface switches across the interior"
+```
+
+The status notification names the deepest copied destination rather than an
+abstract level count:
+
+```text
+Agent Handoff copied: Pid
+Agent Handoff copied: Pid -> Object
+Agent Handoff copied: Pid -> Node Group
+Agent Handoff copied: Pid -> Node
+Agent Handoff copied: Pid -> Frame
+```
+
+When an Address Handoff appears in a prompt, agents must interpret it
+left-to-right: target the stated live Blender instance first, then resolve the
+exact object or node-tree datablock names supplied. The rightmost component is
+the user's most specific intended working destination; do not substitute a
+similarly named object or group without reporting the ambiguity.
+
 **Key files** (both source and installed copy have the same layout):
 
 - `__init__.py` — Blender-side operators + N-panel; anchor / discovery
@@ -297,14 +366,15 @@ Do NOT:
 
 ---
 
-## Handoff for future Claude  [POLICY]
+## Handoff for future agents  [POLICY]
 
 If, at session end, you know something about the ecosystem that isn't
 captured here and would help the next session — **write it down**. Options:
 
 - Add it as a `[POLICY]` bullet under an existing section here.
-- If it's project-specific, write it to the project's own `CLAUDE.md`
-  instead (project tier).
+- If it's project-specific, write it to the project's own `AGENT.md` or
+  `AGENTS.md` instead (project tier). Legacy client-specific instruction files
+  may still be discovered for compatibility, but are not the preferred source.
 - If it's a machine-detectable fact rather than a policy, add discovery
   logic to `discover_addon_repos` / `discover_blend_projects` /
   `_asset_libraries` so future sessions get it automatically via

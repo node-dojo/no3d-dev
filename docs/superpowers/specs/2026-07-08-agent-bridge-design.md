@@ -1,9 +1,13 @@
 # Agent Bridge — Design
 
 **Date:** 2026-07-08
-**Status:** Design — pending user review
+**Status:** Implemented; Agent Bridge supersedes retired Claude Pair
 **Project card:** `$VAULT_001/PROJECTS/Agent Bridge/Agent Bridge.md`
 **Repo:** `no3d-asset-developer` (sibling to the `claude_pair/` subpackage)
+
+> **Current relationship (2026-08-28):** Claude Pair is retired. Agent Bridge
+> is the supported successor for live Blender routing and agent access. Later
+> references to Claude Pair describe historical implementation context only.
 
 ---
 

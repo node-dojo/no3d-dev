@@ -1,5 +1,12 @@
 # No3d Dev — Monorepo of Independent Extensions
 
+> **Current amendment (2026-08-28):** The monorepo direction is implemented,
+> but the package lineup changed. Agent Bridge is the supported successor to
+> retired Claude Pair; there is no `no3d_claude_pair` extraction target. Agent
+> Bridge, Send Nodes, and Camera Utilities are vendored from their canonical
+> standalone repositories. Save & Reload is independently authored here.
+> Later Claude Pair steps below are historical and must not be executed.
+
 **Date:** 2026-07-08
 **Target repo:** currently `github.com/node-dojo/no3d-asset-developer` → renaming to
 `github.com/node-dojo/no3d-dev`

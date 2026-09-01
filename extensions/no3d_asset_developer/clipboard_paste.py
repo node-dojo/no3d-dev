@@ -1,8 +1,9 @@
 """
 Paste a clipboard image into the scene as a textured plane.
 
-Reads PNG bytes from the macOS clipboard, saves them next to the .blend
-(or to ~/Downloads if unsaved), creates a plane sized so its long edge
+Resolves a copied image file before falling back to PNG pixels from the macOS
+clipboard, saves it next to the .blend (or to ~/Downloads if unsaved), and
+creates a plane sized so its long edge
 matches the configured target length (default 50 mm), and assigns a
 material with a transparent-alpha image-texture shader.
 
@@ -18,9 +19,11 @@ Shader graph:
 import datetime
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
+from urllib.parse import unquote, urlparse
 
 import bpy
 from bpy.types import Operator
@@ -29,21 +32,109 @@ from mathutils import Vector
 log = logging.getLogger(__name__)
 
 
+MESH_PLANE_SHADER_DEFAULTS = {
+    "shader": "SHADELESS",
+    "use_transparency": True,
+    "render_method": "BLENDED",
+    "interpolation": "Closest",
+    "extension": "REPEAT",
+}
+
+
 # ---------------------------------------------------------------------------
 # Clipboard read (macOS)
 # ---------------------------------------------------------------------------
 
+_IMAGE_EXTENSIONS = {
+    ".bmp", ".dds", ".exr", ".gif", ".hdr", ".jpeg", ".jpg",
+    ".jp2", ".png", ".psd", ".tga", ".tif", ".tiff", ".webp",
+}
+
+
+def _clipboard_image_file_path() -> str | None:
+    """Return a copied image file's path, before asking for rendered pixels.
+
+    Finder advertises both a file URL and image representations. For image
+    files, coercing the latter to PNG may yield Finder's generic document icon
+    instead of the file contents, so the file URL must take precedence.
+    """
+    if sys.platform != "darwin":
+        return None
+
+    script = r'''
+    try
+        set fileURL to the clipboard as «class furl»
+        return fileURL as text
+    on error
+        return "NO_FILE"
+    end try
+    '''
+    try:
+        proc = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True,
+            timeout=5,
+            text=True,
+        )
+    except Exception as exc:
+        log.debug("Clipboard file URL read failed: %s", exc)
+        return None
+
+    value = (proc.stdout or "").strip()
+    if proc.returncode != 0 or not value or value == "NO_FILE":
+        return None
+
+    parsed = urlparse(value)
+    if parsed.scheme == "file" and parsed.netloc in ("", "localhost"):
+        path = unquote(parsed.path)
+    elif not parsed.scheme:
+        path = value
+    else:
+        return None
+
+    path = os.path.abspath(os.path.expanduser(path))
+    if not os.path.isfile(path):
+        return None
+    if os.path.splitext(path)[1].casefold() not in _IMAGE_EXTENSIONS:
+        return None
+    return path
+
 def _read_clipboard_png_to_file(out_path: str) -> bool:
     """Write the macOS clipboard's image (if any) to out_path as PNG.
 
-    Returns True on success. Implementation: AppleScript reads the
-    clipboard as PNGf and writes raw bytes to a file.
+    A copied image file is read directly so Finder's document-icon PNG is not
+    mistaken for its contents. Otherwise AppleScript reads clipboard PNGf
+    pixels, which is correct for screenshots and copied image regions.
     """
     if sys.platform != "darwin":
         return False
 
-    script = f'''
-    set outFile to POSIX file "{out_path}"
+    source_path = _clipboard_image_file_path()
+    if source_path:
+        try:
+            if os.path.splitext(source_path)[1].casefold() == ".png":
+                shutil.copyfile(source_path, out_path)
+            else:
+                converted = subprocess.run(
+                    ["sips", "-s", "format", "png", source_path, "--out", out_path],
+                    capture_output=True,
+                    timeout=30,
+                    text=True,
+                )
+                if converted.returncode != 0:
+                    log.warning(
+                        "Clipboard image conversion failed: %s",
+                        (converted.stderr or converted.stdout or "").strip(),
+                    )
+                    return False
+            return os.path.getsize(out_path) > 0
+        except (OSError, subprocess.SubprocessError) as exc:
+            log.warning("Clipboard image file copy failed: %s", exc)
+            return False
+
+    script = r'''
+    on run argv
+    set outFile to POSIX file (item 1 of argv)
     try
         set imgData to the clipboard as «class PNGf»
     on error
@@ -61,10 +152,11 @@ def _read_clipboard_png_to_file(out_path: str) -> bool:
         return "WRITE_FAILED: " & errMsg
     end try
     return "OK"
+    end run
     '''
     try:
         proc = subprocess.run(
-            ["osascript", "-e", script],
+            ["osascript", "-e", script, out_path],
             capture_output=True,
             timeout=10,
             text=True,
@@ -431,6 +523,25 @@ _classes = (
 _addon_keymaps = []
 
 
+def _apply_mesh_plane_shader_defaults(properties):
+    """Apply the canonical clipboard-plane shader choices to operator props."""
+    for name, value in MESH_PLANE_SHADER_DEFAULTS.items():
+        setattr(properties, name, value)
+
+
+def _seed_native_mesh_plane_defaults():
+    """Make Add → Image → Mesh Plane open with NO3D's shader template."""
+    try:
+        properties = bpy.context.window_manager.operator_properties_last(
+            "image.import_as_mesh_planes"
+        )
+        if properties is not None:
+            _apply_mesh_plane_shader_defaults(properties)
+    except Exception as exc:
+        log.warning("Could not seed Image as Mesh Plane defaults: %s", exc)
+    return None
+
+
 def _register_keymaps():
     wm = bpy.context.window_manager
     kc = wm.keyconfigs.addon
@@ -444,6 +555,16 @@ def _register_keymaps():
         type="V", value="PRESS",
         oskey=True, shift=True,
     )
+    _addon_keymaps.append((km, kmi))
+
+    # Shift+5 — native Image → Mesh Plane importer with the same shadeless
+    # alpha material defaults as Paste Clipboard as Plane.
+    kmi = km.keymap_items.new(
+        "image.import_as_mesh_planes",
+        type="FIVE", value="PRESS",
+        shift=True,
+    )
+    _apply_mesh_plane_shader_defaults(kmi.properties)
     _addon_keymaps.append((km, kmi))
 
     # Ctrl+Shift+Alt+Z — orient selected objects' +Z to viewport
@@ -468,6 +589,7 @@ def register():
     for cls in _classes:
         bpy.utils.register_class(cls)
     _register_keymaps()
+    _seed_native_mesh_plane_defaults()
     try:
         bpy.types.VIEW3D_MT_image_add.append(_draw_add_menu)
     except Exception:

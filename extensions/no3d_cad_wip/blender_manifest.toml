@@ -1,0 +1,29 @@
+schema_version = "1.0.0"
+
+id = "no3d_cad_wip"
+version = "0.1.0"
+name = "No3d CAD.wip"
+tagline = "Experimental native Blender direct-modeling orchestration"
+maintainer = "Joe Bowers <joe@welltarot.com>"
+type = "add-on"
+
+website = "https://no3dtools.com"
+
+tags = ["3D View", "Modeling"]
+
+blender_version_min = "5.2.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+
+copyright = [
+  "2026 The Well Tarot, LLC",
+]
+
+[build]
+paths = [
+  "__init__.py",
+  "README.md",
+]
+
