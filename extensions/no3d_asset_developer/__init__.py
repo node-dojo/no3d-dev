@@ -66,10 +66,33 @@ EXTRACTION_METHOD_ITEMS = [
     ),
 ]
 
+VIEW_ALIGN_KEY_ITEMS = tuple(
+    (letter, letter, f"Use {letter} while View Distribute is active")
+    for letter in "BCDEFGHIJKLMNOPQRSTUVWXYZ"
+)
+
 
 class NO3D_AddonPreferences(AddonPreferences):
     """Add-on preferences for No3d Asset Developer"""
     bl_idname = __name__
+
+    view_align_bounds_reference: EnumProperty(
+        name="Edge Alignment Reference",
+        items=(
+            ("SELECTION", "Selection Bounds", "Align to the combined selected-object bounds"),
+            ("ACTIVE", "Active Object", "Align to the active object's matching edge"),
+        ),
+        default="SELECTION",
+    )
+    view_distribute_axis_x_key: EnumProperty(
+        name="World X Lock", items=VIEW_ALIGN_KEY_ITEMS, default="X"
+    )
+    view_distribute_axis_y_key: EnumProperty(
+        name="World Y Lock", items=VIEW_ALIGN_KEY_ITEMS, default="C"
+    )
+    view_distribute_axis_z_key: EnumProperty(
+        name="World Z Lock", items=VIEW_ALIGN_KEY_ITEMS, default="Z"
+    )
 
     default_vendor: StringProperty(
         name="Default Vendor",
@@ -363,6 +386,17 @@ class NO3D_AddonPreferences(AddonPreferences):
             box.row().label(text=f"Last updated: {stamp}")
         except OSError:
             pass
+
+        layout.separator()
+
+        box = layout.box()
+        box.label(text="View Align", icon="MOD_MIRROR")
+        box.prop(self, "view_align_bounds_reference")
+        row = box.row(align=True)
+        row.prop(self, "view_distribute_axis_x_key", text="X")
+        row.prop(self, "view_distribute_axis_y_key", text="Y")
+        row.prop(self, "view_distribute_axis_z_key", text="Z")
+        box.label(text="A toggles zero gap while Distribute is active", icon="INFO")
 
         layout.separator()
 
