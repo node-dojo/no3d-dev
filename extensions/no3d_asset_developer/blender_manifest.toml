@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "no3d_asset_developer"
-version = "4.5.0"
+version = "4.5.1"
 name = "No3d Asset Developer"
 tagline = "Export clean per-asset .blend files with metadata & thumbnails"
 maintainer = "Joe Bowers <joe@welltarot.com>"
@@ -38,6 +38,7 @@ paths = [
   "wip_sync.py",
   "library_roles.py",
   "public_library.py",
+  "solvet_bridge.py",
   "extraction_methods.py",
   "blend_export.py",
   "_export_single_asset.py",

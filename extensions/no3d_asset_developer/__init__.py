@@ -1,7 +1,7 @@
 bl_info = {
     "name": "No3d Asset Developer",
     "author": "NO3D Tools",
-    "version": (4, 5, 0),
+    "version": (4, 5, 1),
     "blender": (5, 0, 0),
     "location": "Asset Browser > Context Menu | 3D Viewport > N-Panel > NO3D Dev",
     "description": "Export marked assets as clean, individual .blend files with frontmatter, thumbnails, and dev notes. WIP folder auto-sync.",
