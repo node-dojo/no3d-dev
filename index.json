@@ -49,8 +49,8 @@
         "Pipeline"
       ],
       "archive_url": "./no3d_asset_developer-4.5.0.zip",
-      "archive_size": 224334,
-      "archive_hash": "sha256:6b63071ec0c603d69f6e2a026a2e06a7091b10119ed2dbe387c3263aa4e1f7ec"
+      "archive_size": 225499,
+      "archive_hash": "sha256:bbe19568af01361667171473c9ee843c80abf1e28a2cea7977ca6a7eb178e79a"
     },
     {
       "schema_version": "1.0.0",
@@ -132,7 +132,7 @@
       ],
       "archive_url": "./agent_bridge-0.4.1.zip",
       "archive_size": 28379,
-      "archive_hash": "sha256:15538faac59a2093b6c8dcc0f52205ab2b4687c7f2a746ba64d6ff6631326691"
+      "archive_hash": "sha256:6cd1b66bfdd298e93299607845eeacbc92eff347b6abf67b8accb41768235d4c"
     },
     {
       "schema_version": "1.0.0",
