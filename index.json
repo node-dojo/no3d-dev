@@ -4,10 +4,87 @@
   "data": [
     {
       "schema_version": "1.0.0",
+      "id": "no3d_save_reload",
+      "name": "No3d Save & Reload",
+      "tagline": "Save the next Blender iteration and reopen it",
+      "version": "1.0.0",
+      "type": "add-on",
+      "maintainer": "Joe Bowers <joe@welltarot.com>",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "5.0.0",
+      "website": "https://no3dtools.com",
+      "permissions": {
+        "files": "Save numbered Blender iterations and launch the saved file"
+      },
+      "tags": [
+        "System"
+      ],
+      "archive_url": "./no3d_save_reload-1.0.0.zip",
+      "archive_size": 3818,
+      "archive_hash": "sha256:1148df1ea4210d3ad04563b83868b956eaede25d51a7689fd4641ff63c96bce9"
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "no3d_asset_developer",
+      "name": "No3d Asset Developer",
+      "tagline": "Export clean per-asset .blend files with metadata & thumbnails",
+      "version": "4.5.0",
+      "type": "add-on",
+      "maintainer": "Joe Bowers <joe@welltarot.com>",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "5.0.0",
+      "website": "https://no3dtools.com",
+      "copyright": [
+        "2026 The Well Tarot, LLC"
+      ],
+      "permissions": {
+        "files": "Export asset .blend files, thumbnails, and metadata to disk"
+      },
+      "tags": [
+        "Import-Export",
+        "Pipeline"
+      ],
+      "archive_url": "./no3d_asset_developer-4.5.0.zip",
+      "archive_size": 224334,
+      "archive_hash": "sha256:6b63071ec0c603d69f6e2a026a2e06a7091b10119ed2dbe387c3263aa4e1f7ec"
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "send_nodes",
+      "name": "Send Nodes",
+      "tagline": "Share node groups as native Blender files by URL",
+      "version": "0.1.0",
+      "type": "add-on",
+      "maintainer": "Node Dojo",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "4.5.0",
+      "website": "https://github.com/node-dojo/Send-Nodes",
+      "permissions": {
+        "files": "Export and import node-group bundle files",
+        "network": "Download node-group bundles from user-supplied URLs",
+        "clipboard": "Copy the public URL of an exported node-group bundle"
+      },
+      "tags": [
+        "Node",
+        "Geometry Nodes",
+        "Material"
+      ],
+      "archive_url": "./send_nodes-0.1.0.zip",
+      "archive_size": 4505,
+      "archive_hash": "sha256:a5aa28d620fbe7f3e1c06c2c8cafbb4fe730a09a7781f03fc9ba1df923ebd65a"
+    },
+    {
+      "schema_version": "1.0.0",
       "id": "no3d_camera_utilities",
       "name": "No3d Camera Utilities",
-      "tagline": "2D/3D mesh camera tools, framing plane, and render utilities",
-      "version": "1.0.0",
+      "tagline": "Viewport camera framing, mesh fit, and render utilities",
+      "version": "1.2.0",
       "type": "add-on",
       "maintainer": "Joe Bowers <joe@welltarot.com>",
       "license": [
@@ -25,16 +102,16 @@
         "3D View",
         "Render"
       ],
-      "archive_url": "./no3d_camera_utilities-1.0.0.zip",
-      "archive_size": 15895,
-      "archive_hash": "sha256:fd42c5ed218c99113ec71ba8a173fdb318d006ea14536c10d32849724e25f540"
+      "archive_url": "./no3d_camera_utilities-1.2.0.zip",
+      "archive_size": 20400,
+      "archive_hash": "sha256:6245938b1b26079183fb2f4d8d55a17618591ddcfc28beb8a4dcc7f2cddd5d28"
     },
     {
       "schema_version": "1.0.0",
       "id": "agent_bridge",
       "name": "Agent Bridge",
-      "tagline": "Serve this Blender to Claude agents by .blend filename",
-      "version": "0.2.1",
+      "tagline": "Serve this Blender to coding agents by .blend filename",
+      "version": "0.4.1",
       "type": "add-on",
       "maintainer": "Joe Bowers <joe@welltarot.com>",
       "license": [
@@ -53,37 +130,33 @@
         "Pipeline",
         "Development"
       ],
-      "archive_url": "./agent_bridge-0.2.1.zip",
-      "archive_size": 17574,
-      "archive_hash": "sha256:6a32e7d0e4a40682220317d746aa66482e7dcbeb6c3618850a0a9e4f6ee50bae"
+      "archive_url": "./agent_bridge-0.4.1.zip",
+      "archive_size": 28379,
+      "archive_hash": "sha256:15538faac59a2093b6c8dcc0f52205ab2b4687c7f2a746ba64d6ff6631326691"
     },
     {
       "schema_version": "1.0.0",
-      "id": "no3d_asset_developer",
-      "name": "No3d Asset Developer",
-      "tagline": "Export clean per-asset .blend files with metadata & thumbnails",
-      "version": "4.1.8",
+      "id": "no3d_cad_wip",
+      "name": "No3d CAD.wip",
+      "tagline": "Experimental native Blender direct-modeling orchestration",
+      "version": "0.1.0",
       "type": "add-on",
       "maintainer": "Joe Bowers <joe@welltarot.com>",
       "license": [
         "SPDX:GPL-3.0-or-later"
       ],
-      "blender_version_min": "5.0.0",
+      "blender_version_min": "5.2.0",
       "website": "https://no3dtools.com",
       "copyright": [
         "2026 The Well Tarot, LLC"
       ],
-      "permissions": {
-        "files": "Export asset .blend files, thumbnails, and metadata to disk",
-        "network": "Starts the official Blender MCP bridge server on localhost"
-      },
       "tags": [
-        "Import-Export",
-        "Pipeline"
+        "3D View",
+        "Modeling"
       ],
-      "archive_url": "./no3d_asset_developer-4.1.8.zip",
-      "archive_size": 210745,
-      "archive_hash": "sha256:7f5440ab40e6febb8916dfd866c017c468f55fe8c86a702851783c5909dbc8ce"
+      "archive_url": "./no3d_cad_wip-0.1.0.zip",
+      "archive_size": 2350,
+      "archive_hash": "sha256:48fd35b41154db0052db33f40d7d4bdf059a5e311641c4001eda9c0572855063"
     }
   ]
 }
