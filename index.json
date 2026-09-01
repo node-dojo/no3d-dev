@@ -4,6 +4,33 @@
   "data": [
     {
       "schema_version": "1.0.0",
+      "id": "no3d_asset_developer",
+      "name": "No3d Asset Developer",
+      "tagline": "Export clean per-asset .blend files with metadata & thumbnails",
+      "version": "4.5.1",
+      "type": "add-on",
+      "maintainer": "Joe Bowers <joe@welltarot.com>",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "5.0.0",
+      "website": "https://no3dtools.com",
+      "copyright": [
+        "2026 The Well Tarot, LLC"
+      ],
+      "permissions": {
+        "files": "Export asset .blend files, thumbnails, and metadata to disk"
+      },
+      "tags": [
+        "Import-Export",
+        "Pipeline"
+      ],
+      "archive_url": "./no3d_asset_developer-4.5.1.zip",
+      "archive_size": 226034,
+      "archive_hash": "sha256:813d6d07cda9bdbde408e9b1255c8d693a49987b3995afea1cee278fb3007072"
+    },
+    {
+      "schema_version": "1.0.0",
       "id": "no3d_save_reload",
       "name": "No3d Save & Reload",
       "tagline": "Save the next Blender iteration and reopen it",
@@ -24,33 +51,6 @@
       "archive_url": "./no3d_save_reload-1.0.0.zip",
       "archive_size": 3818,
       "archive_hash": "sha256:1148df1ea4210d3ad04563b83868b956eaede25d51a7689fd4641ff63c96bce9"
-    },
-    {
-      "schema_version": "1.0.0",
-      "id": "no3d_asset_developer",
-      "name": "No3d Asset Developer",
-      "tagline": "Export clean per-asset .blend files with metadata & thumbnails",
-      "version": "4.5.0",
-      "type": "add-on",
-      "maintainer": "Joe Bowers <joe@welltarot.com>",
-      "license": [
-        "SPDX:GPL-3.0-or-later"
-      ],
-      "blender_version_min": "5.0.0",
-      "website": "https://no3dtools.com",
-      "copyright": [
-        "2026 The Well Tarot, LLC"
-      ],
-      "permissions": {
-        "files": "Export asset .blend files, thumbnails, and metadata to disk"
-      },
-      "tags": [
-        "Import-Export",
-        "Pipeline"
-      ],
-      "archive_url": "./no3d_asset_developer-4.5.0.zip",
-      "archive_size": 225499,
-      "archive_hash": "sha256:bbe19568af01361667171473c9ee843c80abf1e28a2cea7977ca6a7eb178e79a"
     },
     {
       "schema_version": "1.0.0",
