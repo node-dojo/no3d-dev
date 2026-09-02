@@ -11,6 +11,7 @@ TARGET_ROOT="$HOME/Library/Application Support/Blender/$BLENDER_VERSION/extensio
 
 ACTIVE_EXTENSIONS=(
   agent_bridge
+  canvas_editor
   no3d_asset_developer
   no3d_cad_wip
   no3d_camera_utilities

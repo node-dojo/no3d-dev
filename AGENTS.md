@@ -23,6 +23,8 @@ Extensions currently in the repo:
 
 - `agent_bridge` — routes agents to the intended live Blender instance;
   vendored from `github.com/node-dojo/agent-bridge`
+- `canvas_editor` — experimental Blender-native spatial document and media
+  canvas with borderless GPU-skinned cards over real node mechanics
 - `send_nodes` — Blender-native node-group exchange; vendored from
   `github.com/node-dojo/Send-Nodes`
 - `no3d_asset_developer` — asset export pipeline and dogfood host for the

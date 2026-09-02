@@ -22,6 +22,17 @@ In Blender 5.0+:
 
 ## Extensions in this repo
 
+### Canvas Editor
+
+Opens a dedicated Blender-native node Canvas for spatial documents and media.
+V0 establishes untitled custom Canvas trees, GPU-skinned borderless image and
+note cards, native relationship links and frames, and nested Canvas group
+datablocks without requiring a Blender fork.
+
+Location once installed: **3D Viewport → N-Panel → NO3D Dev → Canvas Editor**.
+
+Source: `extensions/canvas_editor/`.
+
 ### No3d Asset Developer
 
 Turns marked assets into clean, individually-packaged `.blend` files with

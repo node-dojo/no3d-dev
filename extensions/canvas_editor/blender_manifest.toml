@@ -1,0 +1,30 @@
+schema_version = "1.0.0"
+
+id = "canvas_editor"
+version = "0.1.0"
+name = "Canvas Editor"
+tagline = "Borderless spatial documents on Blender's native node canvas"
+maintainer = "Joe Bowers <joe@welltarot.com>"
+type = "add-on"
+
+tags = ["Node", "User Interface"]
+
+blender_version_min = "5.2.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+
+copyright = [
+  "2026 The Well Tarot, LLC",
+]
+
+[build]
+paths = [
+  "__init__.py",
+  "model.py",
+  "drawing.py",
+  "operators.py",
+  "ui.py",
+  "README.md",
+]
