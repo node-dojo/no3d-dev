@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import textwrap
 
 import blf
@@ -108,8 +109,19 @@ def _draw_outline(bounds, color, width=1.0):
 
 
 def _draw_image(image, bounds):
-    if image is None or image.size[0] <= 0 or image.size[1] <= 0:
+    status, detail = image_status(image)
+    if status != "READY":
         _draw_rect(bounds, (0.075, 0.075, 0.075, 1.0))
+        left, bottom, _right, top = bounds
+        _draw_text(status.replace("_", " ").title(), left + 14.0, top - 30.0, 14)
+        if detail:
+            _draw_text(
+                detail,
+                left + 14.0,
+                max(bottom + 14.0, top - 54.0),
+                10,
+                (0.58, 0.58, 0.58, 1.0),
+            )
         return
     try:
         texture = gpu.texture.from_image(image)
@@ -126,8 +138,29 @@ def _draw_image(image, bounds):
         shader.bind()
         shader.uniform_sampler("image", texture)
         batch.draw(shader)
-    except Exception:
+    except Exception as exc:
         _draw_rect(bounds, (0.075, 0.075, 0.075, 1.0))
+        left, _bottom, _right, top = bounds
+        _draw_text("Texture unavailable", left + 14.0, top - 30.0, 14)
+        _draw_text(
+            str(exc)[:72],
+            left + 14.0,
+            top - 54.0,
+            10,
+            (0.58, 0.58, 0.58, 1.0),
+        )
+
+
+def image_status(image):
+    if image is None:
+        return "NO_IMAGE", "Choose or assign a Blender Image"
+    if image.size[0] <= 0 or image.size[1] <= 0:
+        return "NOT_LOADED", image.name
+    if image.source == "FILE" and not getattr(image, "packed_file", None):
+        filepath = bpy.path.abspath(image.filepath)
+        if filepath and not os.path.isfile(filepath):
+            return "MISSING", os.path.basename(filepath) or image.name
+    return "READY", ""
 
 
 def _draw_text(text, x, y, size=14, color=(0.88, 0.88, 0.88, 1.0)):
@@ -141,14 +174,20 @@ def _draw_text(text, x, y, size=14, color=(0.88, 0.88, 0.88, 1.0)):
 def _draw_note(node, bounds):
     _draw_rect(bounds, (0.105, 0.105, 0.105, 1.0))
     left, bottom, right, top = bounds
-    source = node.text.as_string() if node.text else "Untitled note"
+    source = node.text.as_string() if node.text else ""
+    if not source:
+        _draw_text("Write…", left + 14.0, top - 30.0, 14, (0.52, 0.52, 0.52, 1.0))
+        return
     lines = []
     for paragraph in source.splitlines() or [""]:
         lines.extend(textwrap.wrap(paragraph, width=max(16, int((right - left) / 8.5))) or [""])
+    available = max(1, int((top - bottom - 35.0) / 20.0))
     y = top - 30.0
-    for line in lines[: max(1, int((top - bottom - 35.0) / 20.0))]:
+    for line in lines[:available]:
         _draw_text(line, left + 14.0, y, 14)
         y -= 20.0
+    if len(lines) > available:
+        _draw_text("…", right - 22.0, bottom + 10.0, 16, (0.62, 0.62, 0.62, 1.0))
 
 
 def _draw_group(node, bounds):

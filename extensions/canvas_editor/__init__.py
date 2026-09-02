@@ -14,7 +14,7 @@ from .ui import UI_CLASSES, register_menus, unregister_menus
 bl_info = {
     "name": "Canvas Editor",
     "author": "Joe Bowers",
-    "version": (0, 1, 0),
+    "version": (0, 2, 0),
     "blender": (5, 2, 0),
     "location": "Node Editor > Sidebar > Canvas",
     "description": "Borderless spatial documents on Blender's native node canvas",

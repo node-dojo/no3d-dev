@@ -23,6 +23,8 @@ from canvas_editor.model import (
     ensure_link_identity,
     ensure_scene_canvas,
 )
+from canvas_editor.drawing import image_status
+from canvas_editor.operators import create_image_card
 
 
 canvas_editor.register()
@@ -31,14 +33,64 @@ tree = ensure_scene_canvas(bpy.context.scene)
 assert tree.bl_idname == TREE_IDNAME
 assert tree.canvas_uuid
 
-image = bpy.data.images.new("Canvas V0 Test Image", width=640, height=320)
-image_node = tree.nodes.new(IMAGE_NODE_IDNAME)
-image_node.image = image
-image_node.refresh_aspect()
-image_node.location = (-300.0, 100.0)
+# Image creation is transactional: bad input leaves the Canvas unchanged.
+node_count = len(tree.nodes)
+try:
+    create_image_card(tree, "", (0.0, 0.0))
+except RuntimeError as exc:
+    assert "Choose an image" in str(exc)
+else:
+    raise AssertionError("Empty image creation unexpectedly succeeded")
+assert len(tree.nodes) == node_count
+
+missing_path = os.path.join(tempfile.gettempdir(), "canvas-editor-missing.png")
+try:
+    create_image_card(tree, missing_path, (0.0, 0.0))
+except RuntimeError as exc:
+    assert "does not exist" in str(exc)
+else:
+    raise AssertionError("Missing image creation unexpectedly succeeded")
+assert len(tree.nodes) == node_count
+
+fixture_path = os.path.join(tempfile.gettempdir(), "canvas-editor-image-fixture.png")
+fixture = bpy.data.images.new("Canvas Image Fixture Source", width=32, height=16)
+fixture.filepath_raw = fixture_path
+fixture.file_format = "PNG"
+fixture.save()
+bpy.data.images.remove(fixture)
+
+image_node = create_image_card(tree, fixture_path, (-300.0, 100.0))
+assert image_node.image is not None
+assert tuple(image_node.location) == (-300.0, 100.0)
+assert image_node.canvas_media_height == image_node.canvas_card_width / 2.0
+assert image_status(image_node.image)[0] == "READY"
+
+# Replacing changes the source without changing card identity or node count.
+replacement_path = os.path.join(tempfile.gettempdir(), "canvas-editor-image-replacement.png")
+replacement = bpy.data.images.new("Canvas Image Fixture Replacement", width=16, height=32)
+replacement.filepath_raw = replacement_path
+replacement.file_format = "PNG"
+replacement.save()
+bpy.data.images.remove(replacement)
+before_replace_count = len(tree.nodes)
+original_uuid = image_node.canvas_uuid
+replaced = create_image_card(
+    tree,
+    replacement_path,
+    (999.0, 999.0),
+    replace_node_uuid=original_uuid,
+)
+assert replaced == image_node
+assert replaced.canvas_uuid == original_uuid
+assert len(tree.nodes) == before_replace_count
+assert tuple(replaced.location) == (-300.0, 100.0)
+assert replaced.canvas_media_height == replaced.canvas_card_width * 2.0
+
 image_node.canvas_settings_expanded = True
 
 note_node = tree.nodes.new(NOTE_NODE_IDNAME)
+assert note_node.text is not None
+assert note_node.text.as_string() == ""
 note_node.text.write("# Canvas Editor V0\n\nBorderless cards over native nodes.")
 note_node.location = (100.0, 100.0)
 
@@ -59,8 +111,9 @@ assert group.node_tree.canvas_uuid
 
 assert image_node.canvas_uuid
 assert note_node.canvas_uuid
-assert image_node.image == image
+assert bpy.path.abspath(image_node.image.filepath) == replacement_path
 assert note_node.text is not None
+assert note_node.text.as_string().startswith("# Canvas Editor V0")
 assert image_node.canvas_settings_expanded
 assert len(tree.links) == 1
 assert note_node.parent == frame

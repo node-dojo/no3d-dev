@@ -25,6 +25,7 @@ class NO3D_CANVAS_PT_canvas(Panel):
         layout.label(text=tree.name if tree else "Untitled Canvas", icon="NODETREE")
 
         create = layout.column(align=True)
+        create.operator_context = "INVOKE_DEFAULT"
         create.operator("no3d_canvas.add_image", icon="IMAGE_DATA")
         create.operator("no3d_canvas.add_note", icon="TEXT")
         create.operator("no3d_canvas.add_nested", icon="NODETREE")
@@ -42,8 +43,15 @@ class NO3D_CANVAS_PT_canvas(Panel):
 
         if node.bl_idname == IMAGE_NODE_IDNAME:
             layout.template_ID(node, "image", open="image.open")
+            row = layout.row(align=True)
+            row.operator_context = "INVOKE_DEFAULT"
+            replace = row.operator("no3d_canvas.add_image", text="Replace", icon="FILE_FOLDER")
+            replace.replace_node_uuid = node.canvas_uuid
+            row.operator("no3d_canvas.reload_image", text="Reload", icon="FILE_REFRESH")
             layout.operator("no3d_canvas.refresh_image_aspect", icon="FULLSCREEN_ENTER")
+            layout.operator("no3d_canvas.open_image_editor", icon="IMAGE_DATA")
         elif node.bl_idname == NOTE_NODE_IDNAME:
+            layout.operator("no3d_canvas.edit_note", icon="TEXT")
             layout.template_ID(node, "text", new="text.new", unlink="text.unlink")
             if node.text:
                 layout.prop(node.text, "name", text="Name")
@@ -57,13 +65,40 @@ def draw_node_add_menu(self, context):
         return
     layout = self.layout
     layout.separator()
+    layout.operator_context = "INVOKE_DEFAULT"
     layout.operator("no3d_canvas.add_image", icon="IMAGE_DATA")
     layout.operator("no3d_canvas.add_note", icon="TEXT")
     layout.operator("no3d_canvas.add_nested", icon="NODETREE")
     layout.operator("no3d_canvas.add_frame", icon="NODE")
 
 
-UI_CLASSES = (NO3D_CANVAS_PT_canvas,)
+class NO3D_CANVAS_PT_text_companion(Panel):
+    bl_idname = "NO3D_CANVAS_PT_text_companion"
+    bl_label = "Canvas Note"
+    bl_space_type = "TEXT_EDITOR"
+    bl_region_type = "UI"
+    bl_category = "Canvas"
+
+    def draw(self, context):
+        self.layout.operator("no3d_canvas.return_to_canvas", icon="NODETREE")
+
+
+class NO3D_CANVAS_PT_image_companion(Panel):
+    bl_idname = "NO3D_CANVAS_PT_image_companion"
+    bl_label = "Canvas Image"
+    bl_space_type = "IMAGE_EDITOR"
+    bl_region_type = "UI"
+    bl_category = "Canvas"
+
+    def draw(self, context):
+        self.layout.operator("no3d_canvas.return_to_canvas", icon="NODETREE")
+
+
+UI_CLASSES = (
+    NO3D_CANVAS_PT_canvas,
+    NO3D_CANVAS_PT_text_companion,
+    NO3D_CANVAS_PT_image_companion,
+)
 
 
 def register_menus():
