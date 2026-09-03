@@ -1,9 +1,9 @@
 """Toolbox section — parent N-panel; each WIP feature is its own sub-section.
 
 The Toolbox panel is the container. Every feature gets a collapsible sub-panel
-(bl_parent_id = Toolbox) so the N-panel mirrors the prefs feature table: one
-sub-section per feature. View Align's sub-panel lives here; WIP Tools' lives in
-make_spin.py. Sub-panel idnames come from ids.FEATURES.
+(bl_parent_id = Toolbox) so the N-panel mirrors the feature registry. View
+Align's sub-panel lives here; Make Spin moved to No3d CAD.wip. Sub-panel
+idnames come from ids.FEATURES.
 """
 
 import bpy

@@ -9,19 +9,18 @@ register_keymap()), so the View Align Alt+A pie keymap still works.
 The source add-on's AddonPreferences (NO3D_WIP_Preferences) is intentionally
 dropped: a Blender add-on may have only one AddonPreferences, and it only
 surfaced ids.FEATURES as a read-only table already mirrored by the Toolbox
-sub-panels. No fields from it are read at runtime by align/make_spin.
+sub-panels. Make Spin moved to the independent No3d CAD.wip extension.
 """
 
 import bpy
 
-from . import align, ids, make_spin, toolbox
+from . import align, ids, toolbox
 
 # Order matches the source add-on (minus preferences). toolbox first so the
 # container panel exists before the sub-panels that set bl_parent_id to it.
 SECTIONS = (
     toolbox,
     align,
-    make_spin,
 )
 
 
