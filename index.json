@@ -157,6 +157,30 @@
       "archive_url": "./no3d_cad_wip-0.1.0.zip",
       "archive_size": 2350,
       "archive_hash": "sha256:48fd35b41154db0052db33f40d7d4bdf059a5e311641c4001eda9c0572855063"
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "no3d_cad_wip",
+      "name": "No3d CAD.wip",
+      "tagline": "Experimental native Blender direct-modeling orchestration",
+      "version": "0.6.0",
+      "type": "add-on",
+      "maintainer": "Joe Bowers <joe@welltarot.com>",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "5.2.0",
+      "website": "https://no3dtools.com",
+      "copyright": [
+        "2026 The Well Tarot, LLC"
+      ],
+      "tags": [
+        "3D View",
+        "Modeling"
+      ],
+      "archive_url": "./no3d_cad_wip-0.6.0.zip",
+      "archive_size": 22744,
+      "archive_hash": "sha256:de25428c55067de6871a1315d62c377b56f7849052eff41765ec6ca0ba4b09a6"
     }
   ]
 }
