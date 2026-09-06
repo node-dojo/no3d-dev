@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "no3d_camera_utilities"
-version = "1.2.0"
+version = "1.3.0"
 name = "No3d Camera Utilities"
 tagline = "Viewport camera framing, mesh fit, and render utilities"
 maintainer = "Joe Bowers <joe@welltarot.com>"

@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "no3d_cad_wip"
-version = "0.1.0"
+version = "0.8.2"
 name = "No3d CAD.wip"
 tagline = "Experimental native Blender direct-modeling orchestration"
 maintainer = "Joe Bowers <joe@welltarot.com>"
@@ -24,6 +24,17 @@ copyright = [
 [build]
 paths = [
   "__init__.py",
+  "ids.py",
+  "contexts.py",
+  "library.py",
+  "mesh_line.py",
+  "batch_embed.py",
+  "keymaps.py",
+  "split_with_plane.py",
+  "generic_ftool.py",
+  "feature_tools.py",
+  "object_references.py",
+  "promote_inputs.py",
   "README.md",
+  "FEATURE_TOOL_ARCHITECTURE.md",
 ]
-

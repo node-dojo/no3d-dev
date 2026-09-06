@@ -1,7 +1,7 @@
 bl_info = {
     "name": "No3d Camera Utilities",
     "author": "Hanuman + Cursor",
-    "version": (1, 2, 0),
+    "version": (1, 3, 0),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar > No3d Cam",
     "description": "2D/3D mesh camera tools, framing, and render utilities",
@@ -229,6 +229,75 @@ def hide_all_else_for_mesh(scene, mesh_obj):
         if obj.type in {"CAMERA", "LIGHT"}:
             continue
         obj.hide_render = True
+
+
+def hide_viewport_hidden_for_render(context):
+    """Temporarily exclude anything not visible in the invoking viewport."""
+    hidden = []
+    viewport = context.space_data if getattr(context.space_data, "type", None) == "VIEW_3D" else None
+    for obj in context.scene.objects:
+        try:
+            visible = obj.visible_get(view_layer=context.view_layer, viewport=viewport)
+        except TypeError:
+            visible = obj.visible_get(view_layer=context.view_layer)
+        if not visible and not obj.hide_render:
+            obj.hide_render = True
+            hidden.append(obj.name)
+    return hidden
+
+
+def match_render_visibility_to_viewport(context):
+    """Permanently make Outliner render toggles match viewport visibility."""
+    viewport = context.space_data if getattr(context.space_data, "type", None) == "VIEW_3D" else None
+    enabled = disabled = changed = 0
+    for obj in context.scene.objects:
+        try:
+            visible = obj.visible_get(view_layer=context.view_layer, viewport=viewport)
+        except TypeError:
+            visible = obj.visible_get(view_layer=context.view_layer)
+        hide_render = not visible
+        if obj.hide_render != hide_render:
+            obj.hide_render = hide_render
+            changed += 1
+        if hide_render:
+            disabled += 1
+        else:
+            enabled += 1
+    return enabled, disabled, changed
+
+
+def framed_view_output_path():
+    if not bpy.data.filepath:
+        raise ValueError("Save the .blend file before rendering the framed view.")
+    stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    return os.path.join(os.path.dirname(bpy.data.filepath), f"framed_view_{stamp}.png")
+
+
+def create_framed_render_scene(source, out_path):
+    """Create an isolated still-output scene sharing the source scene's data."""
+    render_scene = bpy.data.scenes.new("NO3D Framed View Render")
+    render_scene.camera = source.camera
+    render_scene.world = source.world
+    for collection in source.collection.children:
+        render_scene.collection.children.link(collection)
+    for obj in source.collection.objects:
+        render_scene.collection.objects.link(obj)
+
+    render_scene.render.engine = source.render.engine
+    render_scene.render.resolution_x = source.render.resolution_x
+    render_scene.render.resolution_y = source.render.resolution_y
+    render_scene.render.resolution_percentage = source.render.resolution_percentage
+    render_scene.render.film_transparent = source.render.film_transparent
+    render_scene.render.filepath = out_path
+    render_scene.render.image_settings.file_format = "PNG"
+    render_scene.render.image_settings.color_mode = "RGBA"
+    render_scene.render.image_settings.color_depth = "8"
+    for attr in ("view_transform", "look", "exposure", "gamma"):
+        try:
+            setattr(render_scene.view_settings, attr, getattr(source.view_settings, attr))
+        except (AttributeError, TypeError, ValueError):
+            pass
+    return render_scene
 
 
 def get_evaluated_world_vertices(context, obj):
@@ -1269,19 +1338,99 @@ class VIEW3D_PT_make_mesh_camera_render(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
+        layout.label(text="Active Camera Output", icon="CAMERA_DATA")
+        layout.operator("render.no3d_match_visibility_to_viewport", icon="RESTRICT_RENDER_OFF")
+        layout.operator("render.no3d_framed_view_clipboard", icon="RENDER_STILL")
         layout.separator()
-        layout.prop(scene, SCENE_OUTPUT_PATH, text="Output Path")
-        layout.prop(scene, SCENE_USE_FILENAME_MACRO, text="Use filename macro mode")
-        macro_row = layout.row()
+        legacy = layout.box()
+        legacy.label(text="Mesh-fit / General Camera", icon="SETTINGS")
+        legacy.prop(scene, SCENE_OUTPUT_PATH, text="Output Path")
+        legacy.prop(scene, SCENE_USE_FILENAME_MACRO, text="Use filename macro mode")
+        macro_row = legacy.row()
         macro_row.active = bool(getattr(scene, SCENE_USE_FILENAME_MACRO, False))
         macro_row.prop(scene, SCENE_FILENAME_TEMPLATE, text="Filename Template")
-        layout.prop(scene, SCENE_KEEP_CAMERA, text="Keep Camera?")
-        layout.prop(scene, SCENE_HIDE_ALL_ELSE, text="Hide All Else?")
-        layout.prop(scene, SCENE_COPY_CLIPBOARD, text="Copy image to clipboard")
-        layout.prop(scene, SCENE_COPY_OBSIDIAN, text="Copy image to Obsidian assets")
-        layout.operator("object.one_shot_selected_mesh", icon="PLAY")
-        layout.operator("object.render_mesh_camera", icon="RENDER_STILL")
-        layout.operator("object.render_active_3d_camera", icon="RENDER_ANIMATION")
+        legacy.prop(scene, SCENE_KEEP_CAMERA, text="Keep Camera?")
+        legacy.prop(scene, SCENE_HIDE_ALL_ELSE, text="Hide All Else?")
+        legacy.prop(scene, SCENE_COPY_CLIPBOARD, text="Copy image to clipboard")
+        legacy.prop(scene, SCENE_COPY_OBSIDIAN, text="Copy image to Obsidian assets")
+        legacy.operator("object.one_shot_selected_mesh", icon="PLAY")
+        legacy.operator("object.render_mesh_camera", icon="RENDER_STILL")
+        legacy.operator("object.render_active_3d_camera", icon="RENDER_ANIMATION")
+
+
+class RENDER_OT_no3d_match_visibility_to_viewport(bpy.types.Operator):
+    bl_idname = "render.no3d_match_visibility_to_viewport"
+    bl_label = "Match Render Visibility to Viewport"
+    bl_description = "Overwrite every scene object's render toggle to match its current viewport visibility"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.area is not None and context.area.type == "VIEW_3D"
+
+    def execute(self, context):
+        enabled, disabled, changed = match_render_visibility_to_viewport(context)
+        self.report(
+            {"INFO"},
+            f"Matched render visibility: {enabled} enabled, {disabled} disabled, {changed} changed",
+        )
+        return {"FINISHED"}
+
+
+class RENDER_OT_no3d_framed_view_clipboard(bpy.types.Operator):
+    bl_idname = "render.no3d_framed_view_clipboard"
+    bl_label = "Render Active Camera to Clipboard"
+    bl_description = (
+        "Render the active scene camera using viewport visibility, "
+        "save beside the .blend, and copy the PNG to the clipboard"
+    )
+    bl_options = {"REGISTER"}
+
+    @classmethod
+    def poll(cls, context):
+        camera = context.scene.camera if context.scene is not None else None
+        return (
+            context.area is not None
+            and context.area.type == "VIEW_3D"
+            and camera is not None
+            and camera.type == "CAMERA"
+        )
+
+    def execute(self, context):
+        scene = context.scene
+        try:
+            out_path = framed_view_output_path()
+        except ValueError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+
+        old_hide_render = snapshot_hide_render(scene)
+        render_scene = None
+        try:
+            hidden = hide_viewport_hidden_for_render(context)
+            render_scene = create_framed_render_scene(scene, out_path)
+            bpy.ops.render.render(scene=render_scene.name, write_still=True)
+            if not os.path.exists(out_path):
+                raise RuntimeError("Blender did not write the framed-view PNG")
+            copied, message = copy_png_to_clipboard(out_path)
+            if not copied:
+                self.report({"WARNING"}, f"Rendered, but clipboard copy failed: {message}")
+                return {"FINISHED"}
+            print(
+                "RENDER_NO3D_FRAMED_VIEW_CLIPBOARD_OK",
+                f"camera={scene.camera.name}",
+                f"viewport_hidden={len(hidden)}",
+                f"path={out_path}",
+            )
+            self.report({"INFO"}, f"Rendered framed view and copied it to clipboard: {out_path}")
+            return {"FINISHED"}
+        except Exception as exc:
+            self.report({"ERROR"}, f"Framed-view render failed: {exc}")
+            return {"CANCELLED"}
+        finally:
+            restore_hide_render(scene, old_hide_render)
+            if render_scene is not None and render_scene.name in bpy.data.scenes:
+                bpy.data.scenes.remove(render_scene)
 
 
 class VIEW3D_MT_hanuman_mesh_camera_pie(bpy.types.Menu):
@@ -1949,6 +2098,7 @@ class VIEW3D_OT_draw_camera_frame(bpy.types.Operator):
                 )
                 error_px = camera_marquee_projection_error_px(context.scene, cam_obj, corners)
                 cam_obj["no3d_camera_frame_error_px"] = float(error_px)
+                cam_obj["no3d_camera_frame"] = True
                 if target is not None:
                     # Subject metadata is informational only. Draw Camera Frame
                     # must not join the geometry-fit camera pairing workflow.
@@ -2475,6 +2625,8 @@ classes = (
     OBJECT_OT_render_mesh_camera,
     OBJECT_OT_render_active_3d_camera,
     OBJECT_OT_one_shot_selected_mesh,
+    RENDER_OT_no3d_match_visibility_to_viewport,
+    RENDER_OT_no3d_framed_view_clipboard,
     VIEW3D_PT_make_mesh_camera_2d,
     VIEW3D_PT_make_mesh_camera_3d,
     VIEW3D_PT_make_mesh_camera_render,

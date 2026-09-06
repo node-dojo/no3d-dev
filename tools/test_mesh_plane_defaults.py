@@ -37,7 +37,16 @@ try:
     assert not shortcut.ctrl and not shortcut.alt and not shortcut.oskey
     for name, value in expected.items():
         assert getattr(shortcut.properties, name) == value
+
+    assert module.NO3D_OT_drop_images_as_planes.is_registered
+    assert module.NO3D_FH_drop_images_as_planes.is_registered
+    assert not module._native_drop_handler_class.is_registered
 finally:
     module.unregister()
+
+assert not module.NO3D_FH_drop_images_as_planes.is_registered
+assert module._native_drop_handler_class is None
+from bl_operators.view3d import VIEW3D_FH_empty_image
+assert VIEW3D_FH_empty_image.is_registered
 
 print("MESH_PLANE_DEFAULTS_OK")

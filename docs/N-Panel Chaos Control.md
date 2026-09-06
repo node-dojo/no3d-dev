@@ -56,8 +56,8 @@ The pressure comes from several sources:
 | --- | --- | --- |
 | `NO3D Dev` | Develop, inspect, and ship tools | Asset Manager, Dev Notes, Stowaway Inspector, WIP tools, CAD.wip |
 | `Agent` | Connect live Blender sessions to coding agents | Agent Bridge serving, instances, handoff, instructions, terminal launch |
-| `NO3D Create` | Everyday viewport creation | Paste Clipboard, View Align, Toolbox, Aspect Overlay, Camera Framing, Selected Mesh Fit |
-| `NO3D Capture` | Produce images and media | Viewport Screenshot, Editor Screenshot, Transparent Media, Camera Render |
+| `NO3D Create` | Everyday viewport creation | Paste Clipboard, View Align, Toolbox, Aspect Overlay |
+| `NO3D Capture` | Produce images and media | Viewport Screenshot, Editor Screenshot, Transparent Media, Camera Framing, Selected Mesh Fit, Camera Render |
 | `No3D Tools` | Public product workflows | Print Pipeline, printer/output/multipart settings, Send |
 | `Eyecones` | Eyecones-specific operation | Transport, OSC, Spotify, displays, timelapse, and related controls |
 
@@ -121,12 +121,12 @@ sidebar and does not relocate panels between editor types.
 
 ### 4. Power Panel navigation pie — implemented
 
-- Invoke the compact spatial pie with Option+Tab.
+- Invoke Blender's native compact pie with Option+Tab.
 - Use fixed spatial positions for `NO3D Dev`, `NO3D Create`, `NO3D Capture`,
   `No3D Tools`, and `Agent` (shown as Agent Bridge in Power Panel).
 - Include Search All Tabs and Toggle Sidebar utility entries.
-- Select by gesture/click or number row while invoked. Do not install global
-  modifier-number shortcuts.
+- Select by gesture/click or Blender's native 1–8 menu accelerators while the
+  pie is open. Do not install global modifier-number shortcuts.
 - Use the linked NO3D Navigation Pie Config as the implementation source.
 
 ### 5. Numbered tab slots — implemented

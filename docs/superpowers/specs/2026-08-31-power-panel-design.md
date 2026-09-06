@@ -27,17 +27,18 @@ must restore hidden panels before any pipeline run.
 ## Interaction model
 
 - F5 enters keyboard-driven filtering of the persistent Tool Settings field.
-- Option+Tab invokes the spatial Power Panel radial overlay.
+- Option+Tab invokes the native Blender Power Panel pie.
 - Radial entries open destinations by gesture/click.
-- While the overlay is invoked, number-row 1–9 opens the corresponding
-  configured slot.
+- While the pie is open, Blender's native number accelerators 1–8 select the
+  corresponding item in native pie order.
 - No global modifier-number family is reserved.
 - The popup category search remains a fallback available through the header
   and F3 operator search.
 
-The overlay is a modal 3D View drawing rather than Blender's stock pie menu.
-This preserves direct, unmodified number selection after invocation; a stock
-pie consumes those events before an add-on operator can route them.
+The interface uses Blender's stock `layout.menu_pie()` behavior. Its call order
+is the input contract: West, East, South, North, Northwest, Northeast,
+Southwest, Southeast map directly to native number accelerators 1–8. Stable
+configured destination slots 1–5 occupy those same first five ordinal positions.
 
 ## Configuration
 

@@ -70,12 +70,12 @@ PANEL_ROUTES = {
     "NO3D_WIP_PT_feature_view_align": Route("NO3D Create", 20),
     "NO3D_PT_paste_clipboard": Route("NO3D Create", 30),
     "NO3D_PT_aspect_overlay": Route("NO3D Create", 40),
-    "VIEW3D_PT_make_mesh_camera_3d": Route("NO3D Create", 50),
-    "VIEW3D_PT_make_mesh_camera_2d": Route("NO3D Create", 60),
+    "VIEW3D_PT_make_mesh_camera_3d": Route("NO3D Capture", 40),
+    "VIEW3D_PT_make_mesh_camera_2d": Route("NO3D Capture", 50),
     "NO3D_PT_viewport_screenshot": Route("NO3D Capture", 10),
     "NO3D_PT_editor_screenshot": Route("NO3D Capture", 20),
     "NO3D_AD_PT_transparent_media": Route("NO3D Capture", 30),
-    "VIEW3D_PT_make_mesh_camera_render": Route("NO3D Capture", 40),
+    "VIEW3D_PT_make_mesh_camera_render": Route("NO3D Capture", 60),
     "AGENT_BRIDGE_PT_panel": Route("Agent", 10),
 }
 
@@ -83,9 +83,9 @@ PANEL_ROUTES = {
 # Northeast, Southwest, Southeast.
 PIE_DIRECTIONS = (
     ("WEST", "slot", 1, "NO3D Dev"),
-    ("EAST", "slot", 4, "No3D Tools"),
+    ("EAST", "slot", 2, "NO3D Create"),
     ("SOUTH", "slot", 3, "NO3D Capture"),
-    ("NORTH", "slot", 2, "NO3D Create"),
+    ("NORTH", "slot", 4, "No3D Tools"),
     ("NORTHWEST", "slot", 5, "Agent Bridge"),
     ("NORTHEAST", "search", 0, "Search All Tabs"),
     ("SOUTHWEST", "toggle", 0, "Toggle Sidebar"),

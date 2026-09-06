@@ -309,6 +309,6 @@ Non-negotiables) and remove it from this list.
 - N-panel navigation is one internal `power_panel/` feature suite. Its
   reconciliation order is restore hidden/numbered/routed state, discover live
   panels, route canonical categories, apply numeric display slots, then order
-  categories. F5 owns live filter input; Option+Tab owns the spatial pie and
-  invoked number selection. Never add global modifier-number bindings for
+  categories. F5 owns live filter input; Option+Tab opens the native Blender
+  pie, whose own 1–8 accelerators select its ordered entries. Never add global modifier-number bindings for
   Power Panel or split these concerns back into host-level sibling modules.

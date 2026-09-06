@@ -4,19 +4,19 @@
 [N-Panel Chaos Control](../N-Panel%20Chaos%20Control.md) ·
 [Numbered Tab Slots Config →](numbered-tab-slots-config.md)
 
-Status: **Power Panel spatial pie implemented**  
-Revision: **4**  
+Status: **Native Blender Power Panel pie implemented**<br>
+Revision: **5**<br>
 Shortcut: **Option+Tab default; editable in No3d Dev preferences**
 
 This document is both a spatial sketch and the canonical action assignment for
-the Power Panel radial overlay. Edit the spatial map first, then keep the
+the native Power Panel pie. Edit the spatial map first, then keep the
 direction table synchronized so implementation never has to infer intent from
 geometry alone.
 
-The overlay intentionally uses a small custom modal interaction instead of
-Blender's stock pie menu. Stock pies own subsequent number-key events; Power
-Panel needs those same unmodified keys to select editable slots while the
-overlay is open. A native menu class remains available only as a fallback.
+The interface uses Blender's stock pie menu. Native item order is also native
+number-key order: West, East, South, North, Northwest, Northeast, Southwest,
+Southeast correspond to 1–8. The configured destinations are arranged to keep
+their stable slot IDs aligned with those accelerators.
 
 ## Spatial editor
 
@@ -24,22 +24,21 @@ The center is the gesture origin and cancel zone; it is not an action slot.
 
 | ↖ Northwest | ↑ North | ↗ Northeast |
 |:---:|:---:|:---:|
-| **Agent Bridge**<br>`TAB:Agent` | **NO3D Create**<br>`TAB:NO3D Create` | **Search All Tabs**<br>`OP:Search Sidebar Tabs` |
-| **← West**<br><br>**NO3D Dev**<br>`TAB:NO3D Dev` | **CENTER**<br><br>gesture origin<br>release to cancel | **East →**<br><br>**No3D Tools**<br>`TAB:No3D Tools` |
-| **↙ Toggle Sidebar**<br>`OP:Toggle Sidebar` | **↓ NO3D Capture**<br>`TAB:NO3D Capture` | **Last Used Tab ↘**<br>`OP:Previous Sidebar Tab` |
+| **5 Agent Bridge**<br>`TAB:Agent` | **4 No3D Tools**<br>`TAB:No3D Tools` | **6 Search All Tabs**<br>`OP:Search Sidebar Tabs` |
+| **← 1 NO3D Dev**<br><br>`TAB:NO3D Dev` | **CENTER**<br><br>gesture origin<br>release to cancel | **2 NO3D Create →**<br><br>`TAB:NO3D Create` |
+| **↙ 7 Toggle Sidebar**<br>`OP:Toggle Sidebar` | **↓ 3 NO3D Capture**<br>`TAB:NO3D Capture` | **8 Last Used Tab ↘**<br>`OP:Previous Sidebar Tab` |
 
 ## Canonical direction table
 
-The fallback Blender pie API consumes slots in its own call order;
-implementation must map these named directions explicitly rather than relying
-on table or source order.
+Blender's native pie API consumes entries in the direction and number order
+shown below; implementation and documentation must retain this order.
 
 | Enabled | Direction | Stable slot ID | Label | Action kind | Target/operator | Fallback if unavailable |
 | --- | --- | --- | --- | --- | --- | --- |
 | Yes | West | `dev` | NO3D Dev | Tab | `NO3D Dev` | Open Search All Tabs |
-| Yes | East | `tools` | No3D Tools | Tab | `No3D Tools` | Open Search All Tabs |
+| Yes | East | `create` | NO3D Create | Tab | `NO3D Create` | Open Search All Tabs |
 | Yes | South | `capture` | NO3D Capture | Tab | `NO3D Capture` | Open Search All Tabs |
-| Yes | North | `create` | NO3D Create | Tab | `NO3D Create` | Open Search All Tabs |
+| Yes | North | `tools` | No3D Tools | Tab | `No3D Tools` | Open Search All Tabs |
 | Yes | Northwest | `agent` | Agent Bridge | Tab | `Agent` | Open Search All Tabs |
 | Yes | Northeast | `search` | Search All Tabs | Operator | `view3d.no3d_search_sidebar_tabs` | Report unavailable |
 | Yes | Southwest | `toggle` | Toggle Sidebar | Operator | `view3d.toggle_region` configured for UI | Report unavailable |
@@ -57,7 +56,7 @@ on table or source order.
 | Show numbered slot prefixes | `Yes` | Read stable numbers from Numbered Tab Slots Config; do not maintain a second assignment list here. |
 | Wrap native tabs into pie | `No` | Search All Tabs remains the route to native and unrelated categories. |
 | Pie shortcut | `Option+Tab` | Registered through Blender's editable add-on keymap; no active live-profile collision at approval time. |
-| Number selection | `1`–`9` while invoked | Opens the corresponding editable slot without global number bindings. |
+| Number selection | Native `1`–`8` while open | Selects native pie items in order without global number bindings. |
 
 ## Interaction contract
 
@@ -86,6 +85,9 @@ For each new version:
 
 ## Revision notes
 
+- **Revision 5:** Promoted Blender's native pie to the Option+Tab interface,
+  removed the custom GPU/modal renderer, and aligned the first five compass
+  positions with native 1–5 selection. Utilities occupy native slots 6–8.
 - **Revision 3:** Implemented the named compass directions as a custom radial
   overlay, with search/toggle/previous utilities and invoked number-row
   selection. Slot assignments now come from editable No3d Dev preferences. No

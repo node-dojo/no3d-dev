@@ -26,8 +26,9 @@ import tempfile
 from urllib.parse import unquote, urlparse
 
 import bpy
-from bpy.types import Operator
-from mathutils import Vector
+from bpy.props import CollectionProperty, StringProperty
+from bpy.types import Operator, OperatorFileListElement
+from mathutils import Matrix, Vector
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +40,9 @@ MESH_PLANE_SHADER_DEFAULTS = {
     "interpolation": "Closest",
     "extension": "REPEAT",
 }
+
+DROP_ORIENTATION_VIEW = "VIEW"
+DROP_ORIENTATION_WORLD_Z = "WORLD_Z"
 
 
 # ---------------------------------------------------------------------------
@@ -443,6 +447,79 @@ class NO3D_OT_paste_clipboard_plane(Operator):
         return {'FINISHED'}
 
 
+class NO3D_OT_drop_images_as_planes(Operator):
+    """Import File Browser image drops using NO3D's mesh-plane defaults."""
+    bl_idname = "no3d.drop_images_as_planes"
+    bl_label = "Import Images as NO3D Planes"
+    bl_description = "Drop images into the 3D View as shadeless mesh planes"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    directory: StringProperty(subtype='DIR_PATH', options={'HIDDEN', 'SKIP_SAVE'})
+    files: CollectionProperty(
+        type=OperatorFileListElement,
+        options={'HIDDEN', 'SKIP_SAVE'},
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return context.area is not None and context.area.type == 'VIEW_3D'
+
+    def execute(self, context):
+        if not self.files:
+            self.report({'ERROR'}, "No image files were dropped")
+            return {'CANCELLED'}
+
+        addon = context.preferences.addons.get(__package__)
+        orientation = DROP_ORIENTATION_VIEW
+        long_mm = 50.0
+        if addon and hasattr(addon, "preferences"):
+            orientation = getattr(
+                addon.preferences, "drop_plane_orientation", DROP_ORIENTATION_VIEW
+            )
+            long_mm = float(
+                getattr(addon.preferences, "paste_plane_long_edge_mm", 50.0)
+            )
+
+        view_rotation = None
+        if orientation == DROP_ORIENTATION_VIEW:
+            _view_location, view_rotation = _viewport_view_state(context)
+
+        objects_before = set(context.scene.objects)
+        try:
+            result = bpy.ops.image.import_as_mesh_planes(
+                'EXEC_DEFAULT',
+                directory=self.directory,
+                files=[{"name": item.name} for item in self.files],
+                align_axis='+Z',
+                **MESH_PLANE_SHADER_DEFAULTS,
+            )
+        except Exception as exc:
+            log.exception("Dropped image plane import failed")
+            self.report({'ERROR'}, f"Image plane import failed: {exc}")
+            return {'CANCELLED'}
+
+        if 'FINISHED' not in result:
+            return result
+
+        new_planes = [
+            obj for obj in context.scene.objects
+            if obj not in objects_before and obj.type == 'MESH'
+        ]
+        scale_length = context.scene.unit_settings.scale_length or 1.0
+        long_edge = (long_mm / 1000.0) / scale_length
+        for obj in new_planes:
+            current_long_edge = max(obj.dimensions.x, obj.dimensions.y)
+            if current_long_edge > 0.0:
+                obj.data.transform(Matrix.Scale(long_edge / current_long_edge, 4))
+                obj.data.update()
+
+        if view_rotation is not None:
+            for obj in new_planes:
+                _set_object_rotation_quat(obj, view_rotation)
+
+        return {'FINISHED'}
+
+
 # ---------------------------------------------------------------------------
 # Orient selected objects' +Z to the viewport
 # ---------------------------------------------------------------------------
@@ -517,10 +594,62 @@ def _draw_add_menu(self, context):
 
 _classes = (
     NO3D_OT_paste_clipboard_plane,
+    NO3D_OT_drop_images_as_planes,
     NO3D_OT_orient_z_to_viewport,
 )
 
 _addon_keymaps = []
+_native_drop_handler_class = None
+
+
+class NO3D_FH_drop_images_as_planes(bpy.types.FileHandler):
+    bl_idname = "NO3D_FH_drop_images_as_planes"
+    bl_label = "Import images as NO3D planes"
+    bl_import_operator = "NO3D_OT_drop_images_as_planes"
+    bl_file_extensions = ";".join(bpy.path.extensions_image)
+
+    @classmethod
+    def poll_drop(cls, context):
+        if not context.space_data or context.space_data.type != 'VIEW_3D':
+            return False
+        return context.space_data.region_3d.view_perspective in {'PERSP', 'ORTHO'}
+
+
+def _replace_native_image_drop_handler():
+    """Replace Blender's viewport image-empty drop while this add-on is on."""
+    global _native_drop_handler_class
+    try:
+        from bl_operators.view3d import VIEW3D_FH_empty_image
+
+        if getattr(VIEW3D_FH_empty_image, "is_registered", False):
+            bpy.utils.unregister_class(VIEW3D_FH_empty_image)
+            _native_drop_handler_class = VIEW3D_FH_empty_image
+        bpy.utils.register_class(NO3D_FH_drop_images_as_planes)
+    except Exception:
+        log.exception("Could not replace Blender's viewport image drop handler")
+        if _native_drop_handler_class is not None:
+            try:
+                bpy.utils.register_class(_native_drop_handler_class)
+            except Exception:
+                pass
+            _native_drop_handler_class = None
+
+
+def _restore_native_image_drop_handler():
+    global _native_drop_handler_class
+    if getattr(NO3D_FH_drop_images_as_planes, "is_registered", False):
+        try:
+            bpy.utils.unregister_class(NO3D_FH_drop_images_as_planes)
+        except RuntimeError:
+            pass
+    if _native_drop_handler_class is not None:
+        try:
+            if not getattr(_native_drop_handler_class, "is_registered", False):
+                bpy.utils.register_class(_native_drop_handler_class)
+        except Exception:
+            log.exception("Could not restore Blender's viewport image drop handler")
+        finally:
+            _native_drop_handler_class = None
 
 
 def _apply_mesh_plane_shader_defaults(properties):
@@ -588,6 +717,7 @@ def _unregister_keymaps():
 def register():
     for cls in _classes:
         bpy.utils.register_class(cls)
+    _replace_native_image_drop_handler()
     _register_keymaps()
     _seed_native_mesh_plane_defaults()
     try:
@@ -610,6 +740,7 @@ def unregister():
             except Exception:
                 pass
     _unregister_keymaps()
+    _restore_native_image_drop_handler()
     for cls in reversed(_classes):
         try:
             bpy.utils.unregister_class(cls)

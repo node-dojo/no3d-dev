@@ -153,19 +153,17 @@ Classify every add-on repo you discover using these rules, in order:
 
 ## This add-on itself  [POLICY]
 
-- **Canonical source**: `$AGENT_BRIDGE_SRC`
-- **Installed copy** (Blender loads this): `$HOME/Library/verge3d_blender/addons/agent_bridge/`
+- **Canonical upstream source**: `$AGENT_BRIDGE_SRC`
+- **Vendored extension**: `$NO3D_MONOREPO/extensions/agent_bridge`
+- **Observed Blender 5.2 install**:
+  `$HOME/Library/Application Support/Blender/5.2/extensions/user_default/agent_bridge`
+  is a symlink to the vendored extension.
 
-Sync policy: currently separate copies. Preferred fix — symlink installed →
-canonical:
-
-```
-ln -s "$AGENT_BRIDGE_SRC" \
-   "$HOME/Library/verge3d_blender/addons/agent_bridge"
-```
-
-Until that's in place, mirror any edit made at the install path back to the
-source repo (and commit) before ending a session.
+Rediscover the installed module path in the target runtime before changing it;
+the Blender version and extension-repository directory can change. Author the
+change in canonical source, mirror only the intended files into the vendored
+extension, and verify the installed symlink resolves there. Do not overwrite
+newer vendored manifest/version metadata while synchronizing source files.
 
 **Registry** (`registry.py`): JSON files at `~/.blender-pairs/<pid>.json`,
 one per serving Blender. Schema per `build_register_payload`:
@@ -210,9 +208,9 @@ object, and node-group names one at a time.
 - Operator: `bpy.ops.agent_bridge.copy_context_address()`; searchable from F3
   as **Copy Address Handoff**.
 - The shortcut is registered independently in the 3D View, Outliner, Node
-  Editor, and Property Editor, plus a Window-level fallback for every other
-  editor. All bindings are editable under Agent Bridge's add-on preferences;
-  never assume the default remains unchanged.
+  Editor, Sequencer, and Property Editor, plus a Window-level fallback for
+  every other editor. All bindings are editable under Agent Bridge's add-on
+  preferences; never assume the default remains unchanged.
 - The Agent N-panel's copy button and live-instance rows intentionally copy an
   instance-only handoff.
 
@@ -222,7 +220,8 @@ The address becomes more specific according to the editor under the mouse:
 |----------------|--------------------|
 | 3D View | live instance → selected/active object → its active or sole Geometry Nodes group |
 | Outliner | live instance → selected datablock; active object is the fallback when keymap context omits `selected_ids` |
-| Node Editor | live instance → edited node tree → node or frame under the mouse; active node/frame is the fallback |
+| Node Editor | live instance → owning scene when editing a scene compositor → edited node tree → node or frame under the mouse; active node/frame is the fallback |
+| Sequencer | live instance → scene → currently edited meta-strip path → strip under the mouse; active strip is the fallback |
 | Modifier Properties | live instance → active object → its active or sole Geometry Nodes group |
 | Other/no target | live instance only |
 
@@ -243,6 +242,15 @@ when present because it is the human-visible frame/node title, but labels are
 optional and not guaranteed unique. Agents must resolve by `.name` and treat
 `.label` as corroborating display context.
 
+VSE strips are similarly scoped by their owning scene. When a meta strip is
+open for editing, every meta level is copied before the focused strip. The
+strip kind in the label (`Movie Strip`, `Sound Strip`, `Text Strip`, `Scene
+Strip`, `Compositor Strip`, and so on) is corroborating type context; resolve
+the actual strip by `.name` inside the stated scene/meta path. Pointer hit
+testing applies only to the timeline view and mirrors Blender 5.2's visible
+strip body bounds. Preview-only focus and empty channel gaps fall back to the
+active strip, then to the scene.
+
 Clipboard examples:
 
 ```text
@@ -250,6 +258,9 @@ Blender target: "Soon Cages Manu Constraints.001" (:9879, pid 2103)
 Blender target: "Soon Cages Manu Constraints.001" (:9879, pid 2103) → Object: "Ricoh Cage handfeel test_v117" → Geometry Nodes: "Geometry Nodes.001"
 Blender target: "Soon Cages Manu Constraints.001" (:9879, pid 2103) → Geometry Nodes: "Geometry Nodes.001" → Referenced Node Group: "3D Burn Medial Points" → Node: "3D Burn Medial Points"
 Blender target: "Soon Cages Manu Constraints.001" (:9879, pid 2103) → Geometry Nodes: "Geometry Nodes.001" → Frame: "Frame.003" → Frame Label: "Burn until the nearest surface switches across the interior"
+Blender target: "(unsaved)" (:9880, pid 76890) → Scene: "Scene" → Sound Strip: "DMG9JrNyvBf.mp4.001"
+Blender target: "Interview Edit" (:9880, pid 76890) → Scene: "Edit" → Meta Strip: "Transcript Pass" → Text Strip: "Answer 014"
+Blender target: "Interview Edit" (:9880, pid 76890) → Scene: "Edit" → Compositor Nodes: "Caption Composite" → Node: "String to Image"
 ```
 
 The status notification names the deepest copied destination rather than an
@@ -261,6 +272,8 @@ Agent Handoff copied: Pid -> Object
 Agent Handoff copied: Pid -> Node Group
 Agent Handoff copied: Pid -> Node
 Agent Handoff copied: Pid -> Frame
+Agent Handoff copied: Pid -> Scene
+Agent Handoff copied: Pid -> Strip
 ```
 
 When an Address Handoff appears in a prompt, agents must interpret it
@@ -268,6 +281,16 @@ left-to-right: target the stated live Blender instance first, then resolve the
 exact object or node-tree datablock names supplied. The rightmost component is
 the user's most specific intended working destination; do not substitute a
 similarly named object or group without reporting the ambiguity.
+
+### Blender 5.2 VSE and nodes reference  [POLICY]
+
+For Video Sequencer, compositor, scene-compositor, transcript/caption, or
+Blender 5.2 string/list-node work, read
+`references/BLENDER_5_2_VSE_AND_NODES.md` before proposing or making a
+workflow change. It is the local navigation layer; Blender's 5.2 manual,
+release notes, and Python API linked there remain feature/API authority.
+Community add-ons and tutorials are candidate evidence only and must be
+validated against the exact 5.2 runtime before installation or adoption.
 
 **Key files** (both source and installed copy have the same layout):
 

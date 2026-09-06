@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "no3d_asset_developer"
-version = "4.5.1"
+version = "4.6.0"
 name = "No3d Asset Developer"
 tagline = "Export clean per-asset .blend files with metadata & thumbnails"
 maintainer = "Joe Bowers <joe@welltarot.com>"
@@ -45,6 +45,7 @@ paths = [
   "_export_template.blend",
   "aspect_overlay.py",
   "clipboard_paste.py",
+  "saved_file_views.py",
   "repo_registration.py",
   "power_panel/__init__.py",
   "power_panel/activation.py",
@@ -74,7 +75,6 @@ paths = [
   "wip/ids.py",
   "wip/toolbox.py",
   "wip/align.py",
-  "wip/make_spin.py",
 ]
 
 # LICENSE and README.md live at the outer monorepo root

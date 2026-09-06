@@ -69,8 +69,8 @@ Blender tabs first, adds stable numbered bookmarks, and provides two fast
 navigation paths:
 
 - `F5` enters live tab-filter input in the Tool Settings field.
-- `Option+Tab` opens the spatial Power Panel pie; choose by gesture/click or
-  press a displayed number while it is open.
+- `Option+Tab` opens Blender's native Power Panel pie; choose by gesture/click
+  or press its displayed native number while it is open.
 
 Slot destinations are editable in No3d Asset Developer preferences. Defaults
 work immediately, and Power Panel does not reserve global modifier-number

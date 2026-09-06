@@ -490,17 +490,108 @@ if _HAS_BPY:
         view_layer = getattr(context, "view_layer", None)
         return getattr(getattr(view_layer, "objects", None), "active", None)
 
+    def _context_scene(context):
+        """Resolve the scene owned by the focused editor/window."""
+        scene = getattr(context, "scene", None)
+        if scene is not None:
+            return scene
+        return getattr(getattr(context, "window", None), "scene", None)
+
+    def _displayed_strips(sequence_editor):
+        """Return the strips visible at the currently edited meta level."""
+        meta_stack = list(getattr(sequence_editor, "meta_stack", ()) or ())
+        if meta_stack:
+            return list(getattr(meta_stack[-1], "strips", ()) or ()), meta_stack
+        return list(getattr(sequence_editor, "strips", ()) or ()), meta_stack
+
+    def _strip_under_mouse(context, event, sequence_editor):
+        """Return the VSE timeline strip below the key event without changing selection."""
+        if event is None or getattr(context, "region", None) is None:
+            return None
+        space = getattr(context, "space_data", None)
+        if getattr(space, "view_type", "") not in {"SEQUENCER", "SEQUENCER_PREVIEW"}:
+            return None
+        view2d = getattr(context.region, "view2d", None)
+        if view2d is None:
+            return None
+        frame, channel_y = view2d.region_to_view(
+            event.mouse_region_x,
+            event.mouse_region_y,
+        )
+        channel = int(channel_y)
+        # Match Blender 5.2's visible strip body bounds. The small gaps between
+        # channels intentionally do not resolve to either neighboring strip.
+        if not channel + 0.05 <= channel_y <= channel + 0.95:
+            return None
+        strips, _meta_stack = _displayed_strips(sequence_editor)
+        for strip in reversed(strips):
+            if (
+                strip.channel == channel
+                and strip.frame_final_start <= frame <= strip.frame_final_end
+            ):
+                return strip
+        return None
+
+    def _strip_address_label(strip) -> str:
+        """Return the Blender-facing strip kind used in an Address Handoff."""
+        rna_name = getattr(getattr(strip, "bl_rna", None), "name", "")
+        if rna_name and rna_name.endswith("Strip"):
+            return rna_name
+        strip_type = str(getattr(strip, "type", "") or "").replace("_", " ").title()
+        return f"{strip_type} Strip" if strip_type else "Strip"
+
+    def _sequence_editor_references(context, event=None) -> list[tuple[str, str]]:
+        """Describe the owning scene, edited meta path, and focused VSE strip."""
+        scene = _context_scene(context)
+        if scene is None:
+            return []
+        refs = [("Scene", scene.name)]
+        sequence_editor = getattr(scene, "sequence_editor", None)
+        if sequence_editor is None:
+            return refs
+        _strips, meta_stack = _displayed_strips(sequence_editor)
+        refs.extend(("Meta Strip", meta.name) for meta in meta_stack)
+        strip = _strip_under_mouse(context, event, sequence_editor)
+        if strip is None:
+            strip = getattr(context, "active_strip", None)
+        if strip is None:
+            strip = getattr(sequence_editor, "active_strip", None)
+        if strip is not None:
+            refs.append((_strip_address_label(strip), strip.name))
+        return refs
+
+    def _node_editor_scene(context, tree):
+        """Return the scene that owns a root compositor tree, when applicable."""
+        space = getattr(context, "space_data", None)
+        owner = getattr(space, "id", None)
+        if isinstance(owner, bpy.types.Scene):
+            return owner
+        scene = _context_scene(context)
+        if scene is not None and (
+            tree is None or getattr(scene, "compositing_node_group", None) == tree
+        ):
+            return scene
+        return None
+
     def _context_references(context, event=None) -> list[tuple[str, str]]:
         """Resolve the most specific useful Blender target in the focused editor."""
         area_type = getattr(getattr(context, "area", None), "type", "")
 
         if area_type == "NODE_EDITOR":
-            tree = getattr(getattr(context, "space_data", None), "edit_tree", None)
-            tree = tree or getattr(getattr(context, "space_data", None), "node_tree", None)
+            space = getattr(context, "space_data", None)
+            tree = getattr(space, "edit_tree", None)
+            tree = tree or getattr(space, "node_tree", None)
+            refs = []
+            if getattr(space, "tree_type", "") == "CompositorNodeTree":
+                scene = _node_editor_scene(context, tree)
+                if scene is not None:
+                    refs.append(("Scene", scene.name))
             if tree is None:
+                if refs:
+                    return refs
                 obj = _context_object(context)
                 return _object_references(obj) if obj is not None else []
-            refs = [(_node_tree_label(tree), tree.name)]
+            refs.append((_node_tree_label(tree), tree.name))
             hovered = _node_under_mouse(context, event)
             active = hovered or getattr(getattr(tree, "nodes", None), "active", None)
             nested = getattr(active, "node_tree", None) if active else None
@@ -512,6 +603,9 @@ if _HAS_BPY:
                 if active.label:
                     refs.append((f"{kind} Label", active.label))
             return refs
+
+        if area_type == "SEQUENCE_EDITOR":
+            return _sequence_editor_references(context, event=event)
 
         if area_type == "OUTLINER":
             selected_ids = list(getattr(context, "selected_ids", ()) or ())
@@ -580,6 +674,10 @@ if _HAS_BPY:
             deepest = "Node"
         elif deepest in {"Frame Label", "Frame"}:
             deepest = "Frame"
+        elif deepest == "Scene":
+            deepest = "Scene"
+        elif deepest == "Strip" or deepest.endswith(" Strip"):
+            deepest = "Strip"
         return f"Pid -> {deepest}"
 
     def _asset_libraries() -> list[dict]:
@@ -672,7 +770,7 @@ if _HAS_BPY:
         bl_idname = "agent_bridge.copy_context_address"
         bl_label = "Copy Address Handoff"
         bl_description = (
-            "Copy the live Blender target plus the focused object or node tree "
+            "Copy the live Blender target plus the focused scene, strip, object, or node tree "
             "for pasting into an agent prompt"
         )
         bl_options = {"REGISTER"}
@@ -1216,6 +1314,7 @@ if _HAS_BPY:
             ("3D View", "VIEW_3D"),
             ("Outliner", "OUTLINER"),
             ("Node Editor", "NODE_EDITOR"),
+            ("Sequencer", "SEQUENCE_EDITOR"),
             ("Property Editor", "PROPERTIES"),
             ("Window", "EMPTY"),
         ):

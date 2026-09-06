@@ -1,12 +1,7 @@
-"""Power Panel radial overlay with click/gesture and number selection."""
+"""Native Blender Power Panel pie navigation."""
 
-import math
-
-import blf
 import bpy
-import gpu
 from bpy.props import IntProperty
-from gpu_extras.batch import batch_for_shader
 
 from . import activation, config, discovery, filter, slots
 
@@ -14,32 +9,12 @@ from . import activation, config, discovery, filter, slots
 _addon_keymaps = []
 _previous_by_area = {}
 _last_previous = ""
-_NUMBER_EVENTS = {
-    "ONE": 1, "TWO": 2, "THREE": 3, "FOUR": 4, "FIVE": 5,
-    "SIX": 6, "SEVEN": 7, "EIGHT": 8, "NINE": 9,
-}
-_OFFSETS = {
-    "WEST": (-220, 0),
-    "EAST": (220, 0),
-    "SOUTH": (0, -125),
-    "NORTH": (0, 125),
-    "NORTHWEST": (-165, 100),
-    "NORTHEAST": (165, 100),
-    "SOUTHWEST": (-165, -100),
-    "SOUTHEAST": (165, -100),
-}
-
-
 def _slot_categories(context=None):
     return {
         slot: category
         for slot, category in slots.slot_categories(context).items()
         if category
     }
-
-
-def _destination_label(category):
-    return config.DESTINATION_LABELS.get(category, category)
 
 
 def _registered_categories():
@@ -147,7 +122,7 @@ class NO3D_PP_OT_previous_sidebar_tab(bpy.types.Operator):
 
 
 class VIEW3D_MT_no3d_sidebar_tabs_pie(bpy.types.Menu):
-    """Native-menu fallback; Option+Tab uses the richer radial overlay."""
+    """Native Power Panel pie, selectable by gesture, click, or number."""
 
     bl_idname = "VIEW3D_MT_no3d_sidebar_tabs_pie"
     bl_label = "Power Panel"
@@ -155,7 +130,9 @@ class VIEW3D_MT_no3d_sidebar_tabs_pie(bpy.types.Menu):
     def draw(self, context):
         pie = self.layout.menu_pie()
         assignments = _slot_categories(context)
-        for _direction, kind, slot, label in config.PIE_DIRECTIONS:
+        for number, (_direction, kind, slot, label) in enumerate(
+            config.PIE_DIRECTIONS, start=1
+        ):
             if kind == "slot":
                 operator = pie.operator(
                     NO3D_AD_OT_open_sidebar_slot.bl_idname,
@@ -163,153 +140,42 @@ class VIEW3D_MT_no3d_sidebar_tabs_pie(bpy.types.Menu):
                 )
                 operator.slot = slot
             elif kind == "search":
-                pie.operator("view3d.no3d_search_sidebar_tabs", text=label, icon="VIEWZOOM")
+                pie.operator(
+                    "view3d.no3d_search_sidebar_tabs",
+                    text=f"{number}  {label}",
+                    icon="VIEWZOOM",
+                )
             elif kind == "toggle":
-                pie.operator(NO3D_PP_OT_toggle_sidebar.bl_idname, text=label, icon="MENU_PANEL")
+                pie.operator(
+                    NO3D_PP_OT_toggle_sidebar.bl_idname,
+                    text=f"{number}  {label}",
+                    icon="MENU_PANEL",
+                )
             elif kind == "previous":
-                pie.operator(NO3D_PP_OT_previous_sidebar_tab.bl_idname, text=label, icon="BACK")
+                pie.operator(
+                    NO3D_PP_OT_previous_sidebar_tab.bl_idname,
+                    text=f"{number}  {label}",
+                    icon="BACK",
+                )
 
 
 class NO3D_PP_OT_invoke_navigation(bpy.types.Operator):
-    """Open the Power Panel radial selector."""
+    """Open the native Blender Power Panel pie."""
 
     bl_idname = "view3d.no3d_power_panel"
     bl_label = "Power Panel"
-    bl_description = "Open Power Panel; click, gesture, or press a displayed number"
+    bl_description = "Open Power Panel; click, gesture, or press 1-8"
     bl_options = {"INTERNAL"}
-
-    _handler = None
-    _items = None
-    _hover = -1
-    _center = (0, 0)
 
     @classmethod
     def poll(cls, context):
         return context.area is not None and context.area.type == "VIEW_3D"
 
-    def _build_items(self, context):
-        assignments = _slot_categories(context)
-        result = []
-        for direction, kind, slot, label in config.PIE_DIRECTIONS:
-            visible = (
-                f"{slot}  {_destination_label(assignments.get(slot, label))}"
-                if kind == "slot" else label
-            )
-            result.append({
-                "direction": direction,
-                "kind": kind,
-                "slot": slot,
-                "label": visible,
-            })
-        return result
-
     def invoke(self, context, event):
-        width, height = context.region.width, context.region.height
-        self._center = (
-            max(250, min(width - 250, event.mouse_region_x)),
-            max(145, min(height - 145, event.mouse_region_y)),
+        return bpy.ops.wm.call_menu_pie(
+            "INVOKE_DEFAULT",
+            name=VIEW3D_MT_no3d_sidebar_tabs_pie.bl_idname,
         )
-        self._items = self._build_items(context)
-        self._hover = -1
-        self._handler = bpy.types.SpaceView3D.draw_handler_add(
-            self._draw, (), "WINDOW", "POST_PIXEL"
-        )
-        context.window_manager.modal_handler_add(self)
-        context.workspace.status_text_set(
-            "Power Panel: click/gesture or press 1-9 | Esc cancels"
-        )
-        context.area.tag_redraw()
-        return {"RUNNING_MODAL"}
-
-    def _cleanup(self, context):
-        if self._handler is not None:
-            bpy.types.SpaceView3D.draw_handler_remove(self._handler, "WINDOW")
-            self._handler = None
-        context.workspace.status_text_set(None)
-        context.area.tag_redraw()
-
-    def _item_center(self, item):
-        dx, dy = _OFFSETS[item["direction"]]
-        return self._center[0] + dx, self._center[1] + dy
-
-    def _update_hover(self, x, y):
-        distance = math.hypot(x - self._center[0], y - self._center[1])
-        if distance < 38:
-            self._hover = -1
-            return
-        self._hover = min(
-            range(len(self._items)),
-            key=lambda index: math.hypot(
-                x - self._item_center(self._items[index])[0],
-                y - self._item_center(self._items[index])[1],
-            ),
-        )
-
-    @staticmethod
-    def _rect(shader, x, y, width, height, color):
-        vertices = ((x, y), (x + width, y), (x + width, y + height), (x, y + height))
-        batch = batch_for_shader(shader, "TRI_FAN", {"pos": vertices})
-        shader.bind()
-        shader.uniform_float("color", color)
-        batch.draw(shader)
-
-    def _draw(self):
-        shader = gpu.shader.from_builtin("UNIFORM_COLOR")
-        gpu.state.blend_set("ALPHA")
-        for index, item in enumerate(self._items):
-            cx, cy = self._item_center(item)
-            label = item["label"]
-            blf.size(0, 14)
-            text_width, text_height = blf.dimensions(0, label)
-            width = max(126, text_width + 28)
-            height = 34
-            color = (0.12, 0.38, 0.85, 0.96) if index == self._hover else (0.055, 0.055, 0.065, 0.92)
-            self._rect(shader, cx - width / 2, cy - height / 2, width, height, color)
-            blf.color(0, 1.0, 1.0, 1.0, 1.0)
-            blf.position(0, cx - text_width / 2, cy - text_height / 2, 0)
-            blf.draw(0, label)
-        gpu.state.blend_set("NONE")
-
-    def _execute_item(self, context, item):
-        kind = item["kind"]
-        if kind == "slot":
-            return bpy.ops.view3d.no3d_open_sidebar_slot(slot=item["slot"])
-        if kind == "search":
-            return _invoke_search()
-        if kind == "toggle":
-            return bpy.ops.view3d.no3d_toggle_sidebar()
-        if kind == "previous":
-            return bpy.ops.view3d.no3d_previous_sidebar_tab()
-        return {"CANCELLED"}
-
-    def _select_slot(self, context, slot):
-        print(f"POWER_PANEL_NUMBER_OK slot={slot}")
-        self._cleanup(context)
-        return bpy.ops.view3d.no3d_open_sidebar_slot(slot=slot)
-
-    def modal(self, context, event):
-        if event.type == "MOUSEMOVE":
-            self._update_hover(event.mouse_region_x, event.mouse_region_y)
-            context.area.tag_redraw()
-            return {"RUNNING_MODAL"}
-        if event.value == "PRESS" and event.type in _NUMBER_EVENTS and not any(
-            (event.ctrl, event.shift, event.alt, event.oskey)
-        ):
-            slot = _NUMBER_EVENTS[event.type]
-            return self._select_slot(context, slot)
-        if event.type == "LEFTMOUSE" and event.value == "RELEASE":
-            if self._hover >= 0:
-                item = self._items[self._hover]
-                self._cleanup(context)
-                return self._execute_item(context, item)
-            return {"RUNNING_MODAL"}
-        if event.type in {"ESC", "RIGHTMOUSE"}:
-            self._cleanup(context)
-            return {"CANCELLED"}
-        return {"RUNNING_MODAL"}
-
-    def cancel(self, context):
-        self._cleanup(context)
 
 
 _CLASSES = (
@@ -328,16 +194,23 @@ def _register_keymap():
     keymap = keyconfig.keymaps.new(name="3D View", space_type="VIEW_3D")
     # Live extension reloads replace this module and lose the old Python-side
     # handle list. Remove semantic duplicates from the add-on keyconfig before
-    # creating the one owned binding.
+    # creating the one owned binding. Also remove the superseded custom-modal
+    # operator binding from pre-native Power Panel builds.
     for old_item in tuple(keymap.keymap_items):
-        if old_item.idname == NO3D_PP_OT_invoke_navigation.bl_idname:
+        is_owned_native_pie = (
+            old_item.idname == "wm.call_menu_pie"
+            and getattr(old_item.properties, "name", "")
+            == VIEW3D_MT_no3d_sidebar_tabs_pie.bl_idname
+        )
+        if old_item.idname == NO3D_PP_OT_invoke_navigation.bl_idname or is_owned_native_pie:
             keymap.keymap_items.remove(old_item)
     item = keymap.keymap_items.new(
-        NO3D_PP_OT_invoke_navigation.bl_idname,
+        "wm.call_menu_pie",
         type="TAB",
         value="PRESS",
         alt=True,
     )
+    item.properties.name = VIEW3D_MT_no3d_sidebar_tabs_pie.bl_idname
     _addon_keymaps.append((keymap, item))
 
 

@@ -5,13 +5,13 @@
 [N-Panel Chaos Control](../N-Panel%20Chaos%20Control.md)
 
 Status: **Implemented through Power Panel**  
-Revision: **5**  
+Revision: **6**<br>
 Access gesture: **Option+Tab, then click/gesture or number**
 
 This document assigns stable numeric identities to high-frequency N-panel
 destinations. It follows the same idea as numbered output-node slots: the
 number remains attached to the intended destination, provides a visible cue,
-and becomes a direct selection key while the Power Panel pie is invoked.
+and matches its native selection key while the Power Panel pie is open.
 
 ## Editing rules
 
@@ -24,6 +24,8 @@ and becomes a direct selection key while the Power Panel pie is invoked.
 - Set `Enabled` to `No` to reserve a number without exposing or binding it.
 - Do not install global modifier+number bindings. Number keys are interpreted
   only during an invoked Power Panel interaction.
+- Slots 1–5 occupy native pie items 1–5 in matching order. Native items 6–8
+  are Power Panel utilities rather than configurable destination slots.
 - Numbering is local-profile behavior. Public add-ons keep their shipped tab
   names outside the No3d Dev routing environment.
 
@@ -45,8 +47,8 @@ and becomes a direct selection key while the Power Panel pie is invoked.
 
 | Setting | Draft value | Implementation meaning |
 | --- | --- | --- |
-| Invocation | `Option+Tab` | Opens the Power Panel spatial pie. |
-| Number row | `1`–`9` | Use the main number row, not the numeric keypad. |
+| Invocation | `Option+Tab` | Opens Blender's native Power Panel pie. |
+| Number row | Native `1`–`8` | Selects native pie items in order; destination slots occupy 1–5. |
 | Open closed sidebar | `Yes` | Set `space.show_region_ui = True` before activation. |
 | Activate unavailable slot | `Fallback` | Keep the number stable and execute its configured fallback. |
 | Editable assignments | `Yes` | Render slot destination dropdowns in No3d Dev preferences. |
@@ -81,8 +83,8 @@ profile or major add-on set changes.
 - Ctrl and Command numbers own subdivision and selection behavior through 5.
 - Alt and Shift+Alt numbers own collection visibility through 9.
 - `Ctrl+Alt`, `Command+Alt`, and `Ctrl+Command` were empty for all nine slots.
-- The final design uses one Option+Tab entry gesture and handles number keys
-  only while Power Panel is active.
+- The final design uses one Option+Tab entry gesture and Blender handles number
+  keys natively only while its pie is open.
 
 ## Display and search contract
 

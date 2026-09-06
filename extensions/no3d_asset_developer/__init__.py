@@ -1,7 +1,7 @@
 bl_info = {
     "name": "No3d Asset Developer",
     "author": "NO3D Tools",
-    "version": (4, 5, 1),
+    "version": (4, 6, 0),
     "blender": (5, 0, 0),
     "location": "Asset Browser > Context Menu | 3D Viewport > N-Panel > NO3D Dev",
     "description": "Export marked assets as clean, individual .blend files with frontmatter, thumbnails, and dev notes. WIP folder auto-sync.",
@@ -28,6 +28,7 @@ from . import aspect_overlay
 from . import stowaway_inspector
 from . import clipboard_paste
 from . import repo_registration
+from . import saved_file_views
 from . import editor_screenshot
 from . import embed_staging
 from . import header_screenshots
@@ -272,10 +273,10 @@ class NO3D_AddonPreferences(AddonPreferences):
     )
 
     paste_plane_long_edge_mm: FloatProperty(
-        name="Paste Plane Long Edge (mm)",
+        name="Image Plane Long Edge (mm)",
         description=(
-            "When pasting a clipboard image as a plane, the long edge of "
-            "the plane will be this many millimeters. The short edge is "
+            "When pasting or dropping an image as a plane, the long edge "
+            "will be this many millimeters. The short edge is "
             "scaled to preserve the image's aspect ratio. Always millimeters, "
             "regardless of scene length units."
         ),
@@ -284,6 +285,28 @@ class NO3D_AddonPreferences(AddonPreferences):
         max=10000.0,
         precision=2,
     )
+
+    drop_plane_orientation: EnumProperty(
+        name="Dropped Image Orientation",
+        description="Orientation used when an image is dragged from Blender's File Browser into the 3D View",
+        items=(
+            (
+                clipboard_paste.DROP_ORIENTATION_VIEW,
+                "Face Current View",
+                "Face the viewport as it looked when the image was dropped",
+            ),
+            (
+                clipboard_paste.DROP_ORIENTATION_WORLD_Z,
+                "World Z Up",
+                "Keep the plane flat in world XY with its local Z pointing up",
+            ),
+        ),
+        default=clipboard_paste.DROP_ORIENTATION_VIEW,
+    )
+
+    saved_file_views: CollectionProperty(type=saved_file_views.NO3D_FileBrowserSavedView)
+    saved_file_views_index: IntProperty(default=0)
+    saved_file_views_initialized: BoolProperty(default=False, options={'HIDDEN'})
 
     transparent_media_ffmpeg_path: StringProperty(
         name="FFmpeg Executable",
@@ -452,10 +475,12 @@ class NO3D_AddonPreferences(AddonPreferences):
 
         layout.separator()
 
-        # Clipboard Paste
+        # Image planes
         box = layout.box()
-        box.label(text="Paste Clipboard as Plane", icon='IMAGE_REFERENCE')
+        box.label(text="Images as Planes", icon='IMAGE_REFERENCE')
         box.prop(self, "paste_plane_long_edge_mm")
+        box.prop(self, "drop_plane_orientation")
+        box.label(text="File Browser drops use the shadeless NO3D plane settings.", icon='INFO')
 
         layout.separator()
 
@@ -511,6 +536,7 @@ def _draw_addon_keymap_items(layout, context):
         ("Viewport Screenshots (3D View)", viewport_screenshot._addon_keymaps),
         ("Node Screenshots (Node Editor)", node_screenshot._addon_keymaps),
         ("Clipboard / Orientation (3D View)", clipboard_paste._addon_keymaps),
+        ("Saved Views (File Browser)", saved_file_views._addon_keymaps),
         ("Add GeoNode Object (3D View)", geonode_object._addon_keymaps),
         ("Viewport Navigation (Object Mode)", viewport_shortcuts._addon_keymaps),
         *power_panel.keymap_groups(),
@@ -703,6 +729,7 @@ def register():
     # owned by aspect_overlay. Registering prefs before the PropertyGroup
     # raises "register_class(...): expected a Property derived type".
     aspect_overlay.register()
+    saved_file_views.register_types()
     bpy.utils.register_class(NO3D_AddonPreferences)
     _register_wm_props()
     bpy.app.timers.register(_seed_wip_folder_from_prefs, first_interval=0.0)
@@ -715,6 +742,7 @@ def register():
     header_screenshots.register()
     viewport_format.register()
     clipboard_paste.register()
+    saved_file_views.register()
     geonode_object.register()
     viewport_shortcuts.register()
     power_panel.register()
@@ -740,6 +768,7 @@ def unregister():
     transparent_media.unregister()
     viewport_shortcuts.unregister()
     geonode_object.unregister()
+    saved_file_views.unregister()
     clipboard_paste.unregister()
     viewport_format.unregister()
     header_screenshots.unregister()
@@ -754,6 +783,7 @@ def unregister():
         bpy.app.timers.unregister(_register_identified_authoring_libraries)
     _unregister_wm_props()
     bpy.utils.unregister_class(NO3D_AddonPreferences)
+    saved_file_views.unregister_types()
     # aspect_overlay last: prefs (which referenced its PropertyGroup) is
     # already gone, so its draw handlers and the WM bool can be torn
     # down cleanly.

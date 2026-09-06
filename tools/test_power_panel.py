@@ -102,7 +102,14 @@ try:
             if item.idname.startswith("view3d.no3d_")
         ]
         assert any(item.idname == "view3d.no3d_type_sidebar_tab_filter" for item in addon_items)
-        assert any(item.idname == "view3d.no3d_power_panel" for item in addon_items)
+        native_pie_items = [
+            item
+            for keymap in bpy.context.window_manager.keyconfigs.addon.keymaps
+            for item in keymap.keymap_items
+            if item.idname == "wm.call_menu_pie"
+            and item.properties.name == "VIEW3D_MT_no3d_sidebar_tabs_pie"
+        ]
+        assert len(native_pie_items) == 1
         assert not any(item.type in {
             "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE"
         } for item in addon_items)
@@ -115,7 +122,11 @@ try:
             for item in keymap.keymap_items
         ]
         assert sum(item.idname == "view3d.no3d_type_sidebar_tab_filter" for item in addon_items) == 1
-        assert sum(item.idname == "view3d.no3d_power_panel" for item in addon_items) == 1
+        assert sum(
+            item.idname == "wm.call_menu_pie"
+            and item.properties.name == "VIEW3D_MT_no3d_sidebar_tabs_pie"
+            for item in addon_items
+        ) == 1
     finally:
         power_panel.unregister()
 finally:

@@ -31,14 +31,6 @@ DIR_TOP = "TOP"
 DIR_BOTTOM = "BOTTOM"
 DIR_CENTER = "CENTER"
 
-# WIP Tools — Make Spin WIP (moved here from No3d Asset Manager)
-WIP_TOOLS_PANEL_LABEL = "WIP Tools"
-MAKE_SPIN_OT_IDNAME = "no3d_wip.make_spin"
-MAKE_SPIN_OT_LABEL = "Make Spin WIP"
-PUBLISH_MAKE_SPIN_OT_IDNAME = "no3d_wip.publish_make_spin"
-PUBLISH_MAKE_SPIN_OT_LABEL = "Publish make spin to Library"
-MAKE_SPIN_GROUP = "make spin"  # GN node group name (single source of truth)
-
 # ---------------------------------------------------------------------------
 # Feature registry — the single source of truth for the prefs feature table and
 # the per-feature N-panel sub-sections. Add a feature here once; both the
@@ -55,7 +47,6 @@ MAKE_SPIN_GROUP = "make spin"  # GN node group name (single source of truth)
 # ---------------------------------------------------------------------------
 
 VIEW_ALIGN_SUBPANEL_IDNAME = "NO3D_WIP_PT_feature_view_align"
-WIP_TOOLS_SUBPANEL_IDNAME = "NO3D_WIP_PT_feature_wip_tools"
 
 FEATURES = (
     {
@@ -65,13 +56,5 @@ FEATURES = (
         "updated": "2026-08-21 00:00",
         "icon": "MOD_MIRROR",
         "panel_id": VIEW_ALIGN_SUBPANEL_IDNAME,
-    },
-    {
-        "id": "wip_tools",
-        "name": WIP_TOOLS_PANEL_LABEL,
-        "version": "0.1.0",
-        "updated": "2026-06-16 14:42",
-        "icon": "TOOL_SETTINGS",
-        "panel_id": WIP_TOOLS_SUBPANEL_IDNAME,
     },
 )

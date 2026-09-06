@@ -69,8 +69,6 @@ destination names so routing remains stable when numbering is disabled.
 | Yes | `NO3D_WIP_PT_feature_view_align` | View Align | Asset Developer | `NO3D Create` | 20 | Keep under Toolbox. |
 | Yes | `NO3D_PT_paste_clipboard` | Paste Clipboard as Plane | Asset Developer | `NO3D Create` | 30 | Image/clipboard creation. |
 | Yes | `NO3D_PT_aspect_overlay` | Aspect Overlay | Asset Developer | `NO3D Create` | 40 | View composition. |
-| Yes | `VIEW3D_PT_make_mesh_camera_3d` | Camera Framing | Camera Utilities | `NO3D Create` | 50 | Primary camera framing workflow. |
-| Yes | `VIEW3D_PT_make_mesh_camera_2d` | Selected Mesh Fit | Camera Utilities | `NO3D Create` | 60 | Secondary orthographic workflow. |
 
 ### NO3D Capture — images, renders, and media
 
@@ -79,7 +77,9 @@ destination names so routing remains stable when numbering is disabled.
 | Yes | `NO3D_PT_viewport_screenshot` | Viewport Screenshot | Asset Developer | `NO3D Capture` | 10 | 3D View capture. |
 | Yes | `NO3D_PT_editor_screenshot` | Editor Screenshot | Asset Developer | `NO3D Capture` | 20 | Non-viewport editor capture. |
 | Yes | `NO3D_AD_PT_transparent_media` | Transparent Media | Asset Developer | `NO3D Capture` | 30 | Transparent still/video output. |
-| Yes | `VIEW3D_PT_make_mesh_camera_render` | Mesh Camera Render | Camera Utilities | `NO3D Capture` | 40 | Camera-based output. |
+| Yes | `VIEW3D_PT_make_mesh_camera_3d` | Camera Framing | Camera Utilities | `NO3D Capture` | 40 | Primary viewport-defined camera workflow. |
+| Yes | `VIEW3D_PT_make_mesh_camera_2d` | Selected Mesh Fit | Camera Utilities | `NO3D Capture` | 50 | Secondary geometry-driven orthographic workflow. |
+| Yes | `VIEW3D_PT_make_mesh_camera_render` | Mesh Camera Render | Camera Utilities | `NO3D Capture` | 60 | Camera-based output, including framed-view clipboard render. |
 
 ### No3D Tools — public product workflows
 

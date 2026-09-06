@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "agent_bridge"
-version = "0.4.1"
+version = "0.4.2"
 name = "Agent Bridge"
 tagline = "Serve this Blender to coding agents by .blend filename"
 maintainer = "Joe Bowers <joe@welltarot.com>"
@@ -38,6 +38,7 @@ files = "Writes this instance's connection info under ~/.blender-pairs"
 paths = [
   "AGENT.md",
   "__init__.py",
+  "references/BLENDER_5_2_VSE_AND_NODES.md",
   "serve_helpers.py",
   "registry.py",
   "resolver.py",
