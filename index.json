@@ -4,33 +4,6 @@
   "data": [
     {
       "schema_version": "1.0.0",
-      "id": "no3d_asset_developer",
-      "name": "No3d Asset Developer",
-      "tagline": "Export clean per-asset .blend files with metadata & thumbnails",
-      "version": "4.5.1",
-      "type": "add-on",
-      "maintainer": "Joe Bowers <joe@welltarot.com>",
-      "license": [
-        "SPDX:GPL-3.0-or-later"
-      ],
-      "blender_version_min": "5.0.0",
-      "website": "https://no3dtools.com",
-      "copyright": [
-        "2026 The Well Tarot, LLC"
-      ],
-      "permissions": {
-        "files": "Export asset .blend files, thumbnails, and metadata to disk"
-      },
-      "tags": [
-        "Import-Export",
-        "Pipeline"
-      ],
-      "archive_url": "./no3d_asset_developer-4.5.1.zip",
-      "archive_size": 226034,
-      "archive_hash": "sha256:813d6d07cda9bdbde408e9b1255c8d693a49987b3995afea1cee278fb3007072"
-    },
-    {
-      "schema_version": "1.0.0",
       "id": "no3d_save_reload",
       "name": "No3d Save & Reload",
       "tagline": "Save the next Blender iteration and reopen it",
@@ -50,7 +23,85 @@
       ],
       "archive_url": "./no3d_save_reload-1.0.0.zip",
       "archive_size": 3818,
-      "archive_hash": "sha256:1148df1ea4210d3ad04563b83868b956eaede25d51a7689fd4641ff63c96bce9"
+      "archive_hash": "sha256:cf6684f666d136dc77ea9c8ed87d8f9cc36d0024edc41b1ff4abc8ec34bd82cc"
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "no3d_camera_utilities",
+      "name": "No3d Camera Utilities",
+      "tagline": "Viewport camera framing, mesh fit, and render utilities",
+      "version": "1.3.0",
+      "type": "add-on",
+      "maintainer": "Joe Bowers <joe@welltarot.com>",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "4.2.0",
+      "website": "https://no3dtools.com",
+      "copyright": [
+        "2026 The Well Tarot, LLC"
+      ],
+      "permissions": {
+        "files": "Write rendered images to user-selected output paths"
+      },
+      "tags": [
+        "3D View",
+        "Render"
+      ],
+      "archive_url": "./no3d_camera_utilities-1.3.0.zip",
+      "archive_size": 21726,
+      "archive_hash": "sha256:ab23b5cf6260c64d6f68437b92490e1c8e98661b2ecfdc072dc1d90b665ff5d7"
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "no3d_cad_wip",
+      "name": "No3d CAD.wip",
+      "tagline": "Experimental native Blender direct-modeling orchestration",
+      "version": "0.8.2",
+      "type": "add-on",
+      "maintainer": "Joe Bowers <joe@welltarot.com>",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "5.2.0",
+      "website": "https://no3dtools.com",
+      "copyright": [
+        "2026 The Well Tarot, LLC"
+      ],
+      "tags": [
+        "3D View",
+        "Modeling"
+      ],
+      "archive_url": "./no3d_cad_wip-0.8.2.zip",
+      "archive_size": 29848,
+      "archive_hash": "sha256:6110c8941be89ef336f28ed20dc4971774d53ac4e8b44c84e22c8bbd6d5de363"
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "no3d_asset_developer",
+      "name": "No3d Asset Developer",
+      "tagline": "Export clean per-asset .blend files with metadata & thumbnails",
+      "version": "4.6.0",
+      "type": "add-on",
+      "maintainer": "Joe Bowers <joe@welltarot.com>",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "5.0.0",
+      "website": "https://no3dtools.com",
+      "copyright": [
+        "2026 The Well Tarot, LLC"
+      ],
+      "permissions": {
+        "files": "Export asset .blend files, thumbnails, and metadata to disk"
+      },
+      "tags": [
+        "Import-Export",
+        "Pipeline"
+      ],
+      "archive_url": "./no3d_asset_developer-4.6.0.zip",
+      "archive_size": 226974,
+      "archive_hash": "sha256:c6ebc11131c95daffbc656c78f1fb8ede43eaf68b391516eb1a01835782a27bb"
     },
     {
       "schema_version": "1.0.0",
@@ -77,41 +128,14 @@
       ],
       "archive_url": "./send_nodes-0.1.0.zip",
       "archive_size": 4505,
-      "archive_hash": "sha256:a5aa28d620fbe7f3e1c06c2c8cafbb4fe730a09a7781f03fc9ba1df923ebd65a"
-    },
-    {
-      "schema_version": "1.0.0",
-      "id": "no3d_camera_utilities",
-      "name": "No3d Camera Utilities",
-      "tagline": "Viewport camera framing, mesh fit, and render utilities",
-      "version": "1.2.0",
-      "type": "add-on",
-      "maintainer": "Joe Bowers <joe@welltarot.com>",
-      "license": [
-        "SPDX:GPL-3.0-or-later"
-      ],
-      "blender_version_min": "4.2.0",
-      "website": "https://no3dtools.com",
-      "copyright": [
-        "2026 The Well Tarot, LLC"
-      ],
-      "permissions": {
-        "files": "Write rendered images to user-selected output paths"
-      },
-      "tags": [
-        "3D View",
-        "Render"
-      ],
-      "archive_url": "./no3d_camera_utilities-1.2.0.zip",
-      "archive_size": 20400,
-      "archive_hash": "sha256:6245938b1b26079183fb2f4d8d55a17618591ddcfc28beb8a4dcc7f2cddd5d28"
+      "archive_hash": "sha256:62ee1f858ceb3118b1d262a4c965127dfb00302c83c388ea543cd122cf486a40"
     },
     {
       "schema_version": "1.0.0",
       "id": "agent_bridge",
       "name": "Agent Bridge",
       "tagline": "Serve this Blender to coding agents by .blend filename",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "type": "add-on",
       "maintainer": "Joe Bowers <joe@welltarot.com>",
       "license": [
@@ -130,57 +154,9 @@
         "Pipeline",
         "Development"
       ],
-      "archive_url": "./agent_bridge-0.4.1.zip",
-      "archive_size": 28379,
-      "archive_hash": "sha256:6cd1b66bfdd298e93299607845eeacbc92eff347b6abf67b8accb41768235d4c"
-    },
-    {
-      "schema_version": "1.0.0",
-      "id": "no3d_cad_wip",
-      "name": "No3d CAD.wip",
-      "tagline": "Experimental native Blender direct-modeling orchestration",
-      "version": "0.1.0",
-      "type": "add-on",
-      "maintainer": "Joe Bowers <joe@welltarot.com>",
-      "license": [
-        "SPDX:GPL-3.0-or-later"
-      ],
-      "blender_version_min": "5.2.0",
-      "website": "https://no3dtools.com",
-      "copyright": [
-        "2026 The Well Tarot, LLC"
-      ],
-      "tags": [
-        "3D View",
-        "Modeling"
-      ],
-      "archive_url": "./no3d_cad_wip-0.1.0.zip",
-      "archive_size": 2350,
-      "archive_hash": "sha256:48fd35b41154db0052db33f40d7d4bdf059a5e311641c4001eda9c0572855063"
-    },
-    {
-      "schema_version": "1.0.0",
-      "id": "no3d_cad_wip",
-      "name": "No3d CAD.wip",
-      "tagline": "Experimental native Blender direct-modeling orchestration",
-      "version": "0.6.0",
-      "type": "add-on",
-      "maintainer": "Joe Bowers <joe@welltarot.com>",
-      "license": [
-        "SPDX:GPL-3.0-or-later"
-      ],
-      "blender_version_min": "5.2.0",
-      "website": "https://no3dtools.com",
-      "copyright": [
-        "2026 The Well Tarot, LLC"
-      ],
-      "tags": [
-        "3D View",
-        "Modeling"
-      ],
-      "archive_url": "./no3d_cad_wip-0.6.0.zip",
-      "archive_size": 22744,
-      "archive_hash": "sha256:de25428c55067de6871a1315d62c377b56f7849052eff41765ec6ca0ba4b09a6"
+      "archive_url": "./agent_bridge-0.4.2.zip",
+      "archive_size": 33757,
+      "archive_hash": "sha256:9dda1590ed9c83b4e564b70cda561b3171f81dee4d58815274d55e1177825a9e"
     }
   ]
 }
